@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(hbus CXX C)
 
-
+set(CMAKE_BUILD_TYPE Debug)
 set(3RD_DIR /home/huashi/code)
 include_directories(
   ${3RD_DIR}/include
@@ -11,7 +11,7 @@ link_directories(
   ${3RD_DIR}/lib
 )
 
-set(CMAKE_BUILD_TYPE Release)
+# set(CMAKE_BUILD_TYPE Release)
 file(GLOB COMMON_FILES ${CMAKE_SOURCE_DIR}/common/*.cc)
 file(GLOB CLIENT_FILES ${CMAKE_SOURCE_DIR}/client/*.cc)
 add_library(hbus SHARED ${CLIENT_FILES})

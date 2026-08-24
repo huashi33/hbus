@@ -3,6 +3,7 @@
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
+#include "nng/supplemental/util/platform.h"
 #define TPUB_APPID 1
 #define TSUB_APPID 2
 #define TTOPIC_ID 10010
@@ -23,7 +24,7 @@ static double time_now(){
   return at.tv_sec*1e6+at.tv_nsec/1e3;
 }
 
-static int tpub(){
+static int tpub(int delay){
   int r;
   int all_count = TPUB_COUNT_TOTAL;
   hbus::hnode n(TPUB_APPID);
@@ -32,8 +33,10 @@ static int tpub(){
   while (all_count--){
     d.a1 = time_now();
     ++d.count;
+    n.send_heartbeat();
     r = n.publish(TTOPIC_ID,&d,sizeof(d));
-    usleep(200);
+    // fprintf(stdout,"[%03d]pub\n",d.count);
+    usleep(delay);
   }
   
 
@@ -49,20 +52,21 @@ static int tsub_handle(const void* d,size_t s,void* p){
   total->a1 += (td->a2 - td->a1);
   total->a2 += (td->a3 - td->a2);
   total->a3 += (td->a3 - td->a1); 
-  printf("total->count:%d\n",td->count);
+  // printf("total->count:%d\n",td->count);
   // printf("%f = %f + %f\n",t,t1,t2);
   return 0;
 }
-static int tsub(){
+static int tsub(int node_id){
   int all_count = TPUB_COUNT_TOTAL;
 
   int r;
   TStatics_t total;
   memset(&total,0,sizeof total);
-  hbus::hnode n(TSUB_APPID);
+  hbus::hnode n(node_id);
   r = n.subscrib(TTOPIC_ID,tsub_handle,&total);
   while (TPUB_COUNT_TOTAL > total.count)  {
-    n.spin_once();
+    n.send_heartbeat();
+    sleep(1);
   }
 
 
@@ -75,7 +79,13 @@ static int tsub(){
   return 0;
 }
 int main(int argc,char *argv[]){
-  if('p' == argv[1][0]) return tpub();
+  if('p' == argv[1][0]) {
+    int delay = atoi(argv[2]);
+    return tpub(delay);
 
-  if('s' == argv[1][0]) return tsub();
+  }
+  if('s' == argv[1][0]){
+    int node_id = atoi(argv[2]);
+    return tsub(node_id);
+  } 
 }

@@ -8,12 +8,12 @@ broker sync->async
 hide nng
 
 node
-[x] aync
+[o] aync
 [x] interface 
 [x] atexit
 
 hbusbroker
-[x] aync
-[x] heart-beats
+[o] aync
+[o] heart-beats
 [x] interface
 [x] atexit

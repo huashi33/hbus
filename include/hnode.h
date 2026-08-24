@@ -23,19 +23,24 @@ class hnode{
 private:
   uint16_t node_id;
   nng_socket pub_sock;
+  
+  
   nng_socket sub_sock;
+  nng_aio *sub_aio;
+
   // std::string broker_url;
   std::unordered_map<int,hsuber_t> suber;
 private:
   int connect_broker();
-  int send_heartbeat();
+  static void on_recv_cb(void*);
 public:
   hnode(int);
   ~hnode();
 
 
-  int publish(int topic_id,const void* d,size_t s);
-  int subscrib(int topic_id,subscrib_handler_t h,void*);
+  int send_heartbeat();
+  int publish(uint16_t topic_id,const void* d,uint32_t s);
+  int subscrib(uint16_t topic_id,subscrib_handler_t h,void*);
   int spin_once();
   int spin();
   // int request(int request_id,const void* d,size_t s);
