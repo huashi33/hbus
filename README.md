@@ -13,12 +13,13 @@ node
 [x] interface 
 [x] atexit
 [x] aync call handle in recv_cb
-
+[x] log
 hbusbroker
 [o] aync
 [o] heart-beats
 [x] interface
 [x] atexit
+[x] log
 
 
 

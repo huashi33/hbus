@@ -47,7 +47,7 @@ static int tsub_handle(const hbus::hmsg_t* hm,void* p){
   // printf("%f = %f + %f\n",t,t1,t2);
   return 0;
 }
-static int tsub(int node_id){
+static int tsub(int node_id,int count){
   // int all_count = TPUB_COUNT_TOTAL;
 
   int r;
@@ -56,7 +56,7 @@ static int tsub(int node_id){
   hbus::hnode n(node_id);
   r = n.subscrib(TTOPIC_ID,tsub_handle,&tps);
 
-  int count = 10;
+  // int count = 10;
   while (count--){
     sleep(1);
   }
@@ -66,6 +66,32 @@ static int tsub(int node_id){
   tpstatics_print(&tps);
   return 0;
 }
+
+static int treq(uint16_t node_id,uint16_t server_node_id){
+  int r;
+  hbus::hnode n(node_id);
+  size_t size = (sizeof (hbus::hnode_status_t) )+100*sizeof(hbus::hnode_status_t::sub_msg_id[0]);
+  hbus::hnode_status_t *status = (hbus::hnode_status_t *)malloc(size);
+  uint64_t t1 = hbus::hcommon::clock_now_ns();
+  r = n.request(server_node_id,HBUS_NODE_STATUS,NULL,0,status,size,5000);
+  uint64_t t = hbus::hcommon::clock_now_ns() - t1;
+  double dt = t / 1e3;
+  fprintf(stdout,"cost:%.3f us\n",dt);
+  fprintf(stdout,"node_id:%hu\n",status->node_id);
+  fprintf(stdout,"sub_msg_id_count:%hu\n",status->sub_msg_id_count);
+  for (size_t i = 0; i < status->sub_msg_id_count; i++){
+    fprintf(stdout,"sub_msg_id[%zu]:%hu\n",i,status->sub_msg_id[i]);
+  }
+  free(status);
+  return 0;
+
+}
+static int trep(int node_id){
+
+  return 0;
+}
+
+
 int main(int argc,char *argv[]){
   if('p' == argv[1][0]) {
     int interval = atoi(argv[2]);
@@ -74,6 +100,17 @@ int main(int argc,char *argv[]){
   }
   if('s' == argv[1][0]){
     int node_id = atoi(argv[2]);
-    return tsub(node_id);
+    int count = atoi(argv[3]);
+    return tsub(node_id,count);
+  } 
+
+  if(0 == strcmp("rep",argv[1])){
+    int node_id = atoi(argv[2]);
+    return trep(node_id);
+  } 
+  if(0 == strcmp("req",argv[1])){
+    int node_id = atoi(argv[2]);
+    int server_node_id = atoi(argv[3]);
+    return treq(node_id,server_node_id);
   } 
 }
