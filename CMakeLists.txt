@@ -14,7 +14,7 @@ link_directories(
 # set(CMAKE_BUILD_TYPE Release)
 file(GLOB COMMON_FILES ${CMAKE_SOURCE_DIR}/common/*.cc)
 file(GLOB CLIENT_FILES ${CMAKE_SOURCE_DIR}/client/*.cc)
-add_library(hbus SHARED ${CLIENT_FILES})
+add_library(hbus SHARED ${CLIENT_FILES} ${COMMON_FILES})
 target_link_libraries(hbus PRIVATE nng)
 
 

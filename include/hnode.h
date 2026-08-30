@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <string>
 #include <unordered_map>
-
+#include "hmsg.h"
 
 
 
@@ -12,7 +12,8 @@ namespace hbus{
 
 
 
-typedef int (*subscrib_handler_t)(const void* d,size_t s,void*);
+
+typedef int (*subscrib_handler_t)(const hmsg_t* hmsg,void* p);
 // typedef int (*response_handle_t)(int request_id,const void* d,size_t s);
 typedef struct hsuber_{
   void* param;
@@ -28,11 +29,15 @@ private:
   nng_socket sub_sock;
   nng_aio *sub_aio;
 
+  uint64_t heartbeat_lasttime;//ms
+  nng_msg* nmsg_heartbeat;
+
   // std::string broker_url;
   std::unordered_map<int,hsuber_t> suber;
 private:
   int connect_broker();
-  static void on_recv_cb(void*);
+  static void on_subscrib_recv_cb(void*);
+  static int on_status_req(const hmsg_t* hm, void* p);
 public:
   hnode(int);
   ~hnode();

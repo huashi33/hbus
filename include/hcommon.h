@@ -3,7 +3,15 @@
 #include <stdint.h>
 
 
-#define HBUS_RE
+
+
+
+
+
+
+
+
+
 
 namespace hbus{
 
@@ -16,8 +24,8 @@ private:
 public:
   
   
-
-  static uint64_t clock_now_us();
+  
+  static uint64_t clock_now_ns();
 };
 
 
