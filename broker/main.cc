@@ -194,9 +194,9 @@ static void hb_send_status_req(hbusbroker_t* b){
     nng_msg_alloc(&nmsg_heartbeat, 0);
     hbus::hmsg_t hm = {.magic = HBUS_MSG_MAGIC,
                 .msg_id = HBUS_NODE_STATUS,
+                .to = 0,//all
                 .align = 0,
                 .from = HBUS_APPID_BROKER,
-                .to = 0,//all
                 .payload_size = 0};
     nng_msg_append(nmsg_heartbeat, &hm, sizeof hm);
   }
@@ -211,7 +211,7 @@ int main(int argc, char* argv[]) {
   for (;;) {
     hb_process_nodes(&b);
     hb_send_status_req(&b);
-    nng_msleep(2000);
+    nng_msleep(5000);
 
   }
   return rv;

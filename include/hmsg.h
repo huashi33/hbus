@@ -18,12 +18,12 @@ namespace hbus {
 typedef struct hmsg_ {
   uint16_t magic;// 55aa
   uint16_t msg_id;
+  uint16_t to;
   uint8_t version;
   uint8_t align;
+  
   uint16_t crc_head;
-
   uint16_t from;
-  uint16_t to;
   uint32_t seq;
 
   uint64_t timestamp_us;
@@ -38,7 +38,7 @@ typedef struct hmsg_ {
 }  // namespace hbus
 
 // pub/sub
-#define HBUS_MSG_PUBSUB_HEAD_SIZE (sizeof(hmsg_t::magic) + sizeof(hmsg_t::msg_id))
+#define HBUS_MSG_PUBSUB_HEAD_SIZE 8
 
 
 

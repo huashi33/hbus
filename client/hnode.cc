@@ -85,9 +85,9 @@ int hnode::on_status_req(const hmsg_t* hm, void* p) {
 
   hbus::hmsg_t hms = {.magic = HBUS_MSG_MAGIC,
                       .msg_id = HBUS_MSG_REPLY(HBUS_NODE_STATUS),
+                      .to = hm->from,
                       .align = 0,
                       .from = n->node_id,
-                      .to = hm->from,
                       .seq = hm->seq};
 
   hms.payload_size =
@@ -160,9 +160,9 @@ int hnode::publish(uint16_t topic_id, const void* d, uint32_t s,
   nng_msg_alloc(&msg, 0);
   hbus::hmsg_t hm = {.magic = HBUS_MSG_MAGIC,
                      .msg_id = topic_id,
+                     .to = target_node_id,
                      .align = 0,
                      .from = node_id,
-                     .to = target_node_id,
                      .seq = seq,
                      .payload_size = s};
   nng_msg_append(msg, &hm, sizeof hm);
@@ -183,7 +183,15 @@ int hnode::subscrib(uint16_t topic_id, subscrib_handler_t h, void* param) {
 
   int rv;
   hmsg_t msg = {
-      .magic = HBUS_MSG_MAGIC, .msg_id = topic_id, .version = 0, .align = 0};
+      .magic = HBUS_MSG_MAGIC, .msg_id = topic_id,.to=0, .version = 0, .align = 0};
+  if ((rv = nng_setopt(sub_sock, NNG_OPT_SUB_SUBSCRIBE, &msg,
+                       HBUS_MSG_PUBSUB_HEAD_SIZE) != 0)) {
+    fprintf(stderr, "set subscribe: %s\n", nng_strerror(rv));
+    nng_close(sub_sock);
+    return rv;
+  }
+  msg = {
+      .magic = HBUS_MSG_MAGIC, .msg_id = topic_id,.to=node_id, .version = 0, .align = 0};
   if ((rv = nng_setopt(sub_sock, NNG_OPT_SUB_SUBSCRIBE, &msg,
                        HBUS_MSG_PUBSUB_HEAD_SIZE) != 0)) {
     fprintf(stderr, "set subscribe: %s\n", nng_strerror(rv));
