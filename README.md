@@ -3,23 +3,28 @@ process communication framework
 
 
 TODO
-req-rep
-[o]broker sync->async
-hide nng
-
 node
 [o] aync
 [o] lazy subscrib
+[o] aync call handle in recv_cb
 [x] interface 
 [x] atexit
-[x] aync call handle in recv_cb
 [x] log
+[x] muti-thread
+[x] don't recv msg from self
+<!-- Performance optimization -->
+[x] request pool
+[x] exec pool
+[x] hide nng
+
+
 hbusbroker
-[o] aync
+[o] sync->async
 [o] heart-beats
 [x] interface
 [x] atexit
 [x] log
+[x] muti-thread
 
 
 

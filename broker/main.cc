@@ -70,22 +70,22 @@ static void hb_sub_cb(void* arg) {
   int rv = nng_aio_result(b->sub_aio);
   if (rv == NNG_ECLOSED) return;
   if (rv != 0) {
-    fprintf(stderr, "[sub] recv error: %s\n", nng_strerror(rv));
+    fprintf(stderr, "[sub] <- error: %s\n", nng_strerror(rv));
     return;
   }
 
   nng_msg* msg = nng_aio_get_msg(b->sub_aio);
   size_t l = nng_msg_len(msg);
-  // fprintf(stdout,"[%zu] recv nng_msg\n", l);
+  // fprintf(stdout,"[%zu] <- nng_msg\n", l);
 
   if(sizeof (hbus::hmsg_t) > l){
-    fprintf(stderr, "[sub] recv len error: %zu\n", l);
+    fprintf(stderr, "[sub] <- len error: %zu\n", l);
     nng_msg_free(msg);
     nng_recv_aio(b->sub_sock, b->sub_aio);
     return;
   }
   hbus::hmsg_t* hm = (hbus::hmsg_t*)nng_msg_body(msg);
-  fprintf(stdout,"recv msg_id(%d) %d->%d\n",hm->msg_id,hm->from,hm->to);
+  fprintf(stdout,"<- msg_id(%d) %d->%d\n",hm->msg_id,hm->from,hm->to);
   if (HBUS_APPID_BROKER == hm->to) {
     hb_process_sys(b, hm);
     nng_msg_free(msg);
@@ -108,13 +108,13 @@ static void hb_pub_cb(void* arg) {
   int rv = nng_aio_result(b->pub_aio);
   if (rv == NNG_ECLOSED) return;
   if (rv != 0) {
-    fprintf(stderr, "[sub] recv error: %s\n", nng_strerror(rv));
+    fprintf(stderr, "[sub] <- error: %s\n", nng_strerror(rv));
     return;
   }
 
   static uint32_t count = 0;
   ++count;
-  fprintf(stdout,"send \n");
+  // fprintf(stdout,"-> \n");
   
   // fprintf(stdout, "pub-count:%u\n", count);
 }

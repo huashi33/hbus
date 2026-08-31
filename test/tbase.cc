@@ -30,7 +30,7 @@ static int tpub(int delay,uint32_t msg_total){
   return 0;
 }
 static int tsub_handle(const hbus::hmsg_t* hm,void* p){
-  uint64_t tsend = *((uint64_t*)hm->payload);
+  uint64_t tsend= *((uint64_t*)hm->payload);
 
 
 
@@ -67,16 +67,24 @@ static int tsub(int node_id,int count){
   return 0;
 }
 
-static int treq(uint16_t node_id,uint16_t server_node_id){
+static int treq(uint16_t node_id,uint16_t server_node_id,int count){
   int r;
   hbus::hnode n(node_id);
   size_t size = (sizeof (hbus::hnode_status_t) )+100*sizeof(hbus::hnode_status_t::sub_msg_id[0]);
   hbus::hnode_status_t *status = (hbus::hnode_status_t *)malloc(size);
   uint64_t t1 = hbus::hcommon::clock_now_ns();
-  r = n.request(server_node_id,HBUS_NODE_STATUS,NULL,0,status,size,5000);
+  r = n.request(server_node_id,HBUS_NODE_STATUS,NULL,0,status,size,1000); 
   uint64_t t = hbus::hcommon::clock_now_ns() - t1;
   double dt = t / 1e3;
-  fprintf(stdout,"cost:%.3f us\n",dt);
+  fprintf(stdout,"cost-0:%.3f us\n",dt);
+
+  t1 = hbus::hcommon::clock_now_ns();
+  for(int i = 0;i<count;++i){
+    r = n.request(server_node_id,HBUS_NODE_STATUS,NULL,0,status,size,1000); 
+  }
+  t = hbus::hcommon::clock_now_ns() - t1;
+  dt = t / 1e3;
+  fprintf(stdout,"cost-%d:%.3f us\n",count,dt);
   fprintf(stdout,"node_id:%hu\n",status->node_id);
   fprintf(stdout,"sub_msg_id_count:%hu\n",status->sub_msg_id_count);
   for (size_t i = 0; i < status->sub_msg_id_count; i++){
@@ -111,6 +119,7 @@ int main(int argc,char *argv[]){
   if(0 == strcmp("req",argv[1])){
     int node_id = atoi(argv[2]);
     int server_node_id = atoi(argv[3]);
-    return treq(node_id,server_node_id);
+    int count = atoi(argv[4]);
+    return treq(node_id,server_node_id,count);
   } 
 }
