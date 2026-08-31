@@ -12,14 +12,15 @@ link_directories(
 )
 
 # set(CMAKE_BUILD_TYPE Release)
-file(GLOB COMMON_FILES ${CMAKE_SOURCE_DIR}/common/*.cc)
-file(GLOB CLIENT_FILES ${CMAKE_SOURCE_DIR}/client/*.cc)
-add_library(hbus SHARED ${CLIENT_FILES} ${COMMON_FILES})
+# file(GLOB SRC_FILES ${CMAKE_SOURCE_DIR}/src/*.cc)
+add_library(hbus SHARED src/hcommon.cc
+                        src/hnode.cc
+                        )
 target_link_libraries(hbus PRIVATE nng)
 
 
-file(GLOB SERVER_FILES ${CMAKE_SOURCE_DIR}/broker/*.cc)
-add_executable(hbusbroker ${SERVER_FILES} ${COMMON_FILES})
-target_link_libraries(hbusbroker PRIVATE nng)
+# file(GLOB SERVER_FILES ${CMAKE_SOURCE_DIR}/broker/*.cc)
+add_executable(hbroker src/hbroker.cc)
+target_link_libraries(hbroker PRIVATE nng)
 
 add_subdirectory(test)

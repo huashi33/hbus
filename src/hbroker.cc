@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "hbtype.h"
+#include "hbroker.h"
 #include "hcommon.h"
 #include "hmsg.h"
 #include "nng/nng.h"
