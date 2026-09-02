@@ -182,18 +182,24 @@ int hnode::subscrib(uint16_t topic_id, subscrib_handler_t h, void* param) {
   }
 
   int rv;
-  hmsg_t msg = {
-      .magic = HBUS_MSG_MAGIC, .msg_id = topic_id,.to=0, .version = 0, .align = 0};
-  if ((rv = nng_setopt(sub_sock, NNG_OPT_SUB_SUBSCRIBE, &msg,
-                       HBUS_MSG_PUBSUB_HEAD_SIZE) != 0)) {
+  hmsg_t msg = {.magic = HBUS_MSG_MAGIC,
+                .msg_id = topic_id,
+                .to = 0,
+                .version = 0,
+                .align = 0};
+  if (rv = nng_socket_set(sub_sock, NNG_OPT_SUB_SUBSCRIBE, &msg,
+                          HBUS_MSG_PUBSUB_HEAD_SIZE)) {
     fprintf(stderr, "set subscribe: %s\n", nng_strerror(rv));
     nng_close(sub_sock);
     return rv;
   }
-  msg = {
-      .magic = HBUS_MSG_MAGIC, .msg_id = topic_id,.to=node_id, .version = 0, .align = 0};
-  if ((rv = nng_setopt(sub_sock, NNG_OPT_SUB_SUBSCRIBE, &msg,
-                       HBUS_MSG_PUBSUB_HEAD_SIZE) != 0)) {
+  msg = {.magic = HBUS_MSG_MAGIC,
+         .msg_id = topic_id,
+         .to = node_id,
+         .version = 0,
+         .align = 0};
+  if (rv = nng_socket_set(sub_sock, NNG_OPT_SUB_SUBSCRIBE, &msg,
+                          HBUS_MSG_PUBSUB_HEAD_SIZE)) {
     fprintf(stderr, "set subscribe: %s\n", nng_strerror(rv));
     nng_close(sub_sock);
     return rv;
