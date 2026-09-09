@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
-project(hbus CXX C)
+project(hbus C)
 
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
+# set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(3RD_DIR /home/huashi/code)
 include_directories(
   ${3RD_DIR}/include
@@ -12,15 +13,26 @@ link_directories(
 )
 
 # set(CMAKE_BUILD_TYPE Release)
-# file(GLOB SRC_FILES ${CMAKE_SOURCE_DIR}/src/*.cc)
-add_library(hbus SHARED src/hcommon.cc
-                        src/hnode.cc
-                        )
-target_link_libraries(hbus PRIVATE nng)
+# file(GLOB SRC_FILES ${CMAKE_SOURCE_DIR}/src/*.c)
+add_library(hbus SHARED
+    src/hcommon.c
+    src/hnode.c
+)
+
+target_link_libraries(hbus PRIVATE
+    ${3RD_DIR}/lib/libhcore.a
+    ${3RD_DIR}/lib/libnng.a
+)
 
 
 # file(GLOB SERVER_FILES ${CMAKE_SOURCE_DIR}/broker/*.cc)
-add_executable(hbroker src/hbroker.cc)
-target_link_libraries(hbroker PRIVATE nng)
+add_executable(hbroker
+    src/hbroker.c
+)
 
-add_subdirectory(test)
+target_link_libraries(hbroker PRIVATE
+    ${3RD_DIR}/lib/libhcore.a
+    ${3RD_DIR}/lib/libnng.a
+)
+
+# add_subdirectory(test)

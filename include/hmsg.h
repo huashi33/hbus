@@ -13,7 +13,7 @@
 
 
 
-namespace hbus {
+// namespace hbus {
 
 typedef struct hmsg_ {
   uint16_t magic;// 55aa
@@ -35,7 +35,7 @@ typedef struct hmsg_ {
 
 
 
-}  // namespace hbus
+// }  // namespace hbus
 
 // pub/sub
 #define HBUS_MSG_PUBSUB_HEAD_SIZE 8

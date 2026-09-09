@@ -1,11 +1,13 @@
-#include "hbus.h"
+// #include "hbus.h"
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
 #include "tcommon.h"
+#include "nng/nng.h"
 #include "nng/supplemental/util/platform.h"
 #include "hcommon.h"
+#include "hnode.h"
 #define TPUB_APPID 100
 #define TSUB_APPID 2
 #define TTOPIC_ID 0x0100

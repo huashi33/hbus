@@ -3,19 +3,29 @@ process communication framework
 
 
 TODO
-node
-[o] aync
+<!-- Function -->
+[o] sync -> async
+[o] heart-beats
 [o] lazy subscrib
 [o] aync call handle in recv_cb
 [o] don't recv own request
-[x] interface 
+
+[x] static link to hcore
+[x] c++ -> c
+[x] interface export
 [x] atexit
 [x] log
 [x] muti-thread
-<!-- Performance optimization -->
+<!-- Performance -->
 [x] request pool
 [x] exec pool
 [x] hide nng
+
+
+
+TIPS:
+每个msg_id的回复msg_id为 (UINT16_MAX-msg_id),所以msg_id 需要小于INT16_MAX
+
 
 typedef struct hnode_{
     uint16_t node_id;
@@ -39,18 +49,8 @@ typedef struct hresponse_{
 int hbus_request(hnode_t* n,hrequest_t* req,hresponse_t* res);
 
 
-hbusbroker
-[o] sync->async
-[o] heart-beats
-[x] interface
-[x] atexit
-[x] log
-[x] muti-thread
 
 
 
 
 
-
-tips:
-每个msg_id的回复msg_id为 (UINT16_MAX-msg_id),所以msg_id 需要小于INT16_MAX

@@ -2,10 +2,10 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <string>
-#include <unordered_map>
-#include <vector>
-
+// #include <string>
+// #include <unordered_map>
+// #include <vector>
+#include "hcore/hds.h"
 #include "hbroker.h"
 #include "hcommon.h"
 #include "hmsg.h"
@@ -29,38 +29,39 @@
 //   char algn[256 - 32];
 // } TStatics_t;
 
+HIHASH_DEFINE(uint16_t, nodeinfo_t)
+
 typedef struct hbusbroker_ {
   nng_socket pub_sock;
   nng_aio* pub_aio;
 
   nng_socket sub_sock;
   nng_aio* sub_aio;
-  std::unordered_map<uint16_t, nodeinfo_t> nodes;
+  HIHASH_TYPEDEF(uint16_t, nodeinfo_t) *nodes;
 } hbusbroker_t;
 
-static void hb_print_nodeinfo(hbusbroker_t* b, std::string& ret) {
+static void hb_print_nodeinfo(nodeinfo_t* n) {
   char node_status[256];
-  for (auto& n : b->nodes) {
-    nodeinfo_t& ni = n.second;
-    snprintf(node_status, sizeof(node_status) - 1, "%d:hb %u\n", ni.node_id,
-             ni.watchdog);
-    ret.append(node_status);
-  }
+  snprintf(node_status, sizeof(node_status) - 1, "%d:wd %u\n", n->node_id,n->watchdog);
+  node_status[sizeof(node_status) - 1] = 0;
+  fprintf(stdout, "%s", node_status);
 }
-static void hb_process_sys(hbusbroker_t* b, hbus::hmsg_t* msg) {
-  
+static void hb_process_sys(hbusbroker_t* b, hmsg_t* msg) {
   if (HBUS_MSG_REPLY(HBUS_NODE_STATUS) == msg->msg_id) {
-    auto t = b->nodes.find(msg->from);
-    if (b->nodes.end() == t) {
+    HIHASH_ITERATE it = HIHASH_FIND(b->nodes, msg->from);
+    if (!HIHASH_ITERATE_VALID(b->nodes, it)) {
       // init nodeinfo
       nodeinfo_t n;
       n.node_id = msg->from;
       n.watchdog = NODE_WATCHDOG_INIT;
-      auto i = b->nodes.emplace(n.node_id, n);
-      t = i.first;
+      HIHASH_SET(b->nodes, n.node_id, n);
       fprintf(stdout, "node add:%d\n", msg->from);
     }
-    t->second.watchdog = NODE_WATCHDOG_INIT;
+    else{
+      nodeinfo_t *n = HIHASH_GETVPTR(b->nodes, it);
+      n->watchdog = NODE_WATCHDOG_INIT;
+      fprintf(stdout, "node watchdog updated:%d\n", msg->from);
+    }
   }
 }
 // static void hb_process_msg(hbusbroker_t* b, hbus::hmsg_t* msg);
@@ -78,13 +79,13 @@ static void hb_sub_cb(void* arg) {
   size_t l = nng_msg_len(msg);
   // fprintf(stdout,"[%zu] <- nng_msg\n", l);
 
-  if(sizeof (hbus::hmsg_t) > l){
+  if(sizeof (hmsg_t) > l){
     fprintf(stderr, "[sub] <- len error: %zu\n", l);
     nng_msg_free(msg);
     nng_recv_aio(b->sub_sock, b->sub_aio);
     return;
   }
-  hbus::hmsg_t* hm = (hbus::hmsg_t*)nng_msg_body(msg);
+  hmsg_t* hm = (hmsg_t*)nng_msg_body(msg);
   fprintf(stdout,"<- msg_id(%d) %d->%d\n",hm->msg_id,hm->from,hm->to);
   if (HBUS_APPID_BROKER == hm->to) {
     hb_process_sys(b, hm);
@@ -126,7 +127,7 @@ static int hb_init(hbusbroker_t* b) {
     return 1;
   }
 
-  // 订阅所有主题（空前缀）
+  // 订阅所有MSG_ID
   uint16_t magic = HBUS_MSG_MAGIC;
   if ((rv = nng_setopt(b->sub_sock, NNG_OPT_SUB_SUBSCRIBE, &magic, sizeof magic)) != 0) {
     fprintf(stderr, "set subscribe: %s\n", nng_strerror(rv));
@@ -167,24 +168,46 @@ static void hb_process_nodes(hbusbroker_t* b) {
   //   return;
   // }
   // time_last = time_now;
-  std::vector<uint16_t> torm;
-  for (auto& n : b->nodes) {
-    if (!n.second.watchdog) {
-      torm.push_back(n.first);
+  hbuf_t buf_torm;
+  hbuf_init(&buf_torm, 0);
+  HIHASH_ITERATE it = HIHASH_ITERATE_BEGIN(b->nodes);
+  while (HIHASH_ITERATE_VALID(b->nodes, it)) {
+    nodeinfo_t* ni = HIHASH_GETVPTR(b->nodes, it);
+    hb_print_nodeinfo(ni);
+    if (!ni->watchdog) {
+      hbuf_push(&buf_torm, &ni->node_id, sizeof ni->node_id);
+    } else {
+      --ni->watchdog;
     }
-    std::string s;
-    hb_print_nodeinfo(b, s);
-    // fprintf(stderr,"%d watchdog down\n",n.first);
-    // fprintf(stderr, "%s", s.c_str());
-      // continue;
-    // }
-    --n.second.watchdog;
+    it = HIHASH_ITERATE_NEXT(it);
   }
+  size_t count = buf_torm.len / sizeof(uint16_t);
+  uint16_t* p = (uint16_t*)buf_torm.data;
+  for (size_t i = 0; i < count; i++){
+    uint16_t node_id = p[i];
+    HIHASH_DEL(b->nodes, node_id);
+    fprintf(stderr, "node remove:%d\n", node_id);
+  }
+  hbuf_deinit(&buf_torm);
 
-  for(auto k:torm){
-    b->nodes.erase(k);
-    fprintf(stderr,"node remove:%d\n",k);
-  }
+  // std::vector<uint16_t> torm;
+  // for (auto& n : b->nodes) {
+  //   if (!n.second.watchdog) {
+  //     torm.push_back(n.first);
+  //   }
+  //   std::string s;
+  //   hb_print_nodeinfo(b, s);
+  //   // fprintf(stderr,"%d watchdog down\n",n.first);
+  //   // fprintf(stderr, "%s", s.c_str());
+  //     // continue;
+  //   // }
+  //   --n.second.watchdog;
+  // }
+
+  // for(auto k:torm){
+  //   b->nodes.erase(k);
+  //   fprintf(stderr,"node remove:%d\n",k);
+  // }
 }
 
 // request node's status 
@@ -192,7 +215,7 @@ static void hb_send_status_req(hbusbroker_t* b){
   nng_msg* nmsg_heartbeat = NULL;
   if(!nmsg_heartbeat){
     nng_msg_alloc(&nmsg_heartbeat, 0);
-    hbus::hmsg_t hm = {.magic = HBUS_MSG_MAGIC,
+    hmsg_t hm = {.magic = HBUS_MSG_MAGIC,
                 .msg_id = HBUS_NODE_STATUS,
                 .to = 0,//all
                 .align = 0,
