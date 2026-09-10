@@ -49,7 +49,7 @@ int hnode_init(hnode_t* n, int node_id);
 int hnode_fini(hnode_t* n);
 int hnode_publish(hnode_t* n, uint16_t msg_id, const void* d, uint32_t s,
                  uint16_t target_node_id, uint32_t seq);
-int hnode_subscrib(hnode_t* n, uint16_t msg_id, hbus_subscrib_handler_t h,
+int hnode_subscribe(hnode_t* n, uint16_t msg_id, hbus_subscrib_handler_t h,
                   void* p);
 int hnode_request(hnode_t* n, uint16_t msg_id, uint16_t target_node_id,
                             hbuf_t* req, hbuf_t* res, int timeout);

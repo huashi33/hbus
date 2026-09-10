@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(hbus C)
 
+# set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_BUILD_TYPE Release)
 # set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(3RD_DIR /home/huashi/code)
@@ -35,4 +36,4 @@ target_link_libraries(hbroker PRIVATE
     ${3RD_DIR}/lib/libnng.a
 )
 
-# add_subdirectory(test)
+add_subdirectory(test) 

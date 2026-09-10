@@ -13,7 +13,25 @@
 // #define HBUS_BROKER_PUB_URL "ipc:///tmp/sub"
 // #define HBUS_BROKER_SUB_URL "ipc:///tmp/pub"
 
-// namespace hbus {
+static void hnode_print_suber(hnode_t* n) {
+  fprintf(stdout, "hnode(%d) suber:\n", n->node_id);
+  HIHASH_ITERATE it = HIHASH_ITERATE_BEGIN(n->suber);
+  while (HIHASH_ITERATE_VALID(n->suber, it)) {
+    uint16_t msg_id = HIHASH_GETK(n->suber, it);
+    fprintf(stdout, "msg_id:%d\n", msg_id);
+    it = HIHASH_ITERATE_NEXT(it);
+  }
+}
+static void hnode_print_reqer(hnode_t* n) {
+  fprintf(stdout, "hnode(%d) reqer:\n", n->node_id);
+  HIHASH_ITERATE it = HIHASH_ITERATE_BEGIN(n->reqer);
+  while (HIHASH_ITERATE_VALID(n->reqer, it)) {
+    uint32_t seq = HIHASH_GETK(n->reqer, it);
+    uintptr_t ctx = HIHASH_GETV(n->reqer, it);
+    fprintf(stdout, "seq(%d):%p\n", seq, (void*)ctx);
+    it = HIHASH_ITERATE_NEXT(it);
+  }
+}
 static int hnode_on_status_req(const hmsg_t* hm, void* p) {
   hnode_t* n = (hnode_t*)p;
   nng_msg* nmsg_heartbeat;
@@ -48,7 +66,7 @@ static int hnode_on_status_req(const hmsg_t* hm, void* p) {
 
   nng_sendmsg(n->pub_sock, nmsg_heartbeat, 0);
 
-  fprintf(stderr, "-> msg_id(%d) %d->%d\n", hms.msg_id, hms.from, hms.to);
+  // fprintf(stderr, "hnode(%d) -> msg_id(%d) -> %d\n", n->node_id, hms.msg_id, hms.to);
   return 0;
 }
 
@@ -68,7 +86,7 @@ static int hnode_connect_broker(hnode_t* n) {
     return 1;
   }
 
-  rv = hnode_subscrib(n, HBUS_NODE_STATUS, hnode_on_status_req, n);
+  rv = hnode_subscribe(n, HBUS_NODE_STATUS, hnode_on_status_req, n);
   return rv;
 }
 
@@ -78,7 +96,7 @@ static void hnode_on_subscrib_recv_cb(void* arg) {
   int rv = nng_aio_result(node->sub_aio);
   if (rv == NNG_ECLOSED) return;
   if (rv != 0) {
-    fprintf(stderr, "[sub] <- error: %s\n", nng_strerror(rv));
+    fprintf(stderr, "hnode(%d) sub cb error: %s\n", node->node_id, nng_strerror(rv));
     return;
   }
   nng_msg* nmsg = nng_aio_get_msg(node->sub_aio);
@@ -86,7 +104,7 @@ static void hnode_on_subscrib_recv_cb(void* arg) {
   // fprintf(stdout,"[%zu] <- nng_msg\n", l);
 
   if (sizeof(hmsg_t) > l) {
-    fprintf(stderr, "[sub] <- len error: %zu\n", l);
+    fprintf(stderr, "hnode(%d) sub len error: %zu\n", node->node_id, l);
     nng_msg_free(nmsg);
     nng_recv_aio(node->sub_sock, node->sub_aio);
     return;
@@ -109,11 +127,11 @@ static void hnode_on_subscrib_recv_cb(void* arg) {
       suber.h(hm, suber.param);
     } else {
       fprintf(stderr,
-              "[sub]msg_id error:node(%d) <- msg_id(%d),from %d to %d\n",
+              "hnode(%d)msgid error: msg_id(%d),from %d to %d\n",
               node->node_id, hm->msg_id, hm->from, hm->to);
     }
   } else {
-    fprintf(stderr, "[sub]to error:node(%d) <- msg_id(%d),from %d to %d\n",
+    fprintf(stderr, "hnode(%d)to error: msg_id(%d),from %d to %d\n",
             node->node_id, hm->msg_id, hm->from, hm->to);
   }
   nng_recv_aio(node->sub_sock, node->sub_aio);
@@ -121,17 +139,18 @@ static void hnode_on_subscrib_recv_cb(void* arg) {
 
 
 static int hnode_on_request(const hmsg_t* hm, void* p) {
+  // hnode_print_reqer((hnode_t*)p);
   // muti-thread
   hnode_t* n = (hnode_t*)p;
   // auto it = n->reqer.find(hm->seq);
   // uintptr_t ctx_ptr = HIHASH_GET(n->reqer, hm->seq);
   HIHASH_ITERATE it = HIHASH_FIND(n->reqer, hm->seq);
   if (HIHASH_ITERATE_VALID(n->reqer, it)) {
-    uintptr_t ctx_ptr = HIHASH_GETV(n->reqer, hm->seq);
+    uintptr_t ctx_ptr = HIHASH_GETV(n->reqer, it);
     hnode_req_ctx_t* ctx = (hnode_req_ctx_t*)ctx_ptr;
     // hnode_req_ctx_t* ctx = it->second;
-    fprintf(stdout, "replay: msg_id(%d) %d->%d:%u\n", hm->msg_id, hm->from,
-            hm->to, hm->payload_size);
+    // fprintf(stdout, "replay: msg_id(%d) %d->%d:%u\n", hm->msg_id, hm->from,
+    //         hm->to, hm->payload_size);
     hbuf_push(ctx->replay, hm->payload, hm->payload_size);
     ctx->status = 2;
     // if (ctx->replay >= hm->payload_size) {
@@ -143,8 +162,8 @@ static int hnode_on_request(const hmsg_t* hm, void* p) {
     nng_cv_wake1(ctx->cv);
     // ctx->cv.notify_one();
   }
-  fprintf(stdout, "on_rep out: msg_id(%d) %d->%d\n", hm->msg_id, hm->from,
-          hm->to);
+  // fprintf(stdout, "on_rep out: msg_id(%d) %d->%d\n", hm->msg_id, hm->from,
+  //         hm->to);
   return 0;
 }
 
@@ -214,7 +233,7 @@ int hnode_publish(hnode_t* n, uint16_t topic_id, const void* d, uint32_t s,
   }
   return rv;
 }
-int hnode_subscrib(hnode_t* n, uint16_t topic_id, hbus_subscrib_handler_t h, void* param) {
+int hnode_subscribe(hnode_t* n, uint16_t topic_id, hbus_subscrib_handler_t h, void* param) {
   // multi thread
   if (!HIHASH_SIZE(n->suber)) {
     // lazy subscrib:start <- when first subscrib
@@ -254,9 +273,9 @@ int hnode_request(hnode_t* n, uint16_t msg_id,uint16_t target_node_id,  hbuf_t* 
   // check if subscrib replay
   uint16_t msg_id_replay = HBUS_MSG_REPLY(msg_id);
   // auto it = suber.find(msg_id_replay);
-  HIHASH_ITERATE it = HIHASH_FIND(n->reqer, msg_id_replay);
-  if (!HIHASH_ITERATE_VALID(n->reqer, it)) {
-    hnode_subscrib(n, msg_id_replay, hnode_on_request, n);
+  HIHASH_ITERATE it = HIHASH_FIND(n->suber, msg_id_replay);
+  if (!HIHASH_ITERATE_VALID(n->suber, it)) {
+    hnode_subscribe(n, msg_id_replay, hnode_on_request, n);
   }
   // hbus_suber_t* suber = HIHASH_GET(n->suber, msg_id_replay);
   // if (!suber) {
@@ -269,10 +288,11 @@ int hnode_request(hnode_t* n, uint16_t msg_id,uint16_t target_node_id,  hbuf_t* 
   ctx.replay = res;
   HIHASH_SET(n->reqer, ctx.seq, (uintptr_t)&ctx);
 
+  // hnode_print_reqer(n);
   // publish request
   hnode_publish(n, msg_id, req->data, req->len, target_node_id, ctx.seq);
-  fprintf(stdout, "request(%u): msg_id:%d,req_size:%zu,target_node_id:%d\n",
-          ctx.seq, msg_id, req->len, target_node_id);
+  // fprintf(stdout, "request(%u): msg_id:%d,req_size:%zu,target_node_id:%d\n",
+  //         ctx.seq, msg_id, req->len, target_node_id);
 
   // wait
   // std::unique_lock<std::mutex> l(ctx->mtx);
@@ -291,7 +311,7 @@ int hnode_request(hnode_t* n, uint16_t msg_id,uint16_t target_node_id,  hbuf_t* 
   HIHASH_DEL(n->reqer, ctx.seq);
   nng_mtx_unlock(ctx.mtx);
 
-  fprintf(stdout, "request ret:%d\n", ret);
+  // fprintf(stdout, "request ret:%d\n", ret);
   // release resource
   // reqer.erase(ctx.seq);
   // ctx->status = 0;

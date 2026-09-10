@@ -71,7 +71,7 @@ static void hb_sub_cb(void* arg) {
   int rv = nng_aio_result(b->sub_aio);
   if (rv == NNG_ECLOSED) return;
   if (rv != 0) {
-    fprintf(stderr, "[sub] <- error: %s\n", nng_strerror(rv));
+    fprintf(stderr, "hbroker sub cb error: %s\n", nng_strerror(rv));
     return;
   }
 
@@ -80,13 +80,13 @@ static void hb_sub_cb(void* arg) {
   // fprintf(stdout,"[%zu] <- nng_msg\n", l);
 
   if(sizeof (hmsg_t) > l){
-    fprintf(stderr, "[sub] <- len error: %zu\n", l);
+    fprintf(stderr, "hbroker sub len error: %zu\n", l);
     nng_msg_free(msg);
     nng_recv_aio(b->sub_sock, b->sub_aio);
     return;
   }
   hmsg_t* hm = (hmsg_t*)nng_msg_body(msg);
-  fprintf(stdout,"<- msg_id(%d) %d->%d\n",hm->msg_id,hm->from,hm->to);
+  // fprintf(stdout,"hbroker <- msg_id(%d) %d->%d\n",hm->msg_id,hm->from,hm->to);
   if (HBUS_APPID_BROKER == hm->to) {
     hb_process_sys(b, hm);
     nng_msg_free(msg);
@@ -109,18 +109,19 @@ static void hb_pub_cb(void* arg) {
   int rv = nng_aio_result(b->pub_aio);
   if (rv == NNG_ECLOSED) return;
   if (rv != 0) {
-    fprintf(stderr, "[sub] <- error: %s\n", nng_strerror(rv));
+    fprintf(stderr, "hbroker pub cb error: %s\n", nng_strerror(rv));
     return;
   }
 
   static uint32_t count = 0;
   ++count;
-  // fprintf(stdout,"-> \n");
   
   // fprintf(stdout, "pub-count:%u\n", count);
 }
 
 static int hb_init(hbusbroker_t* b) {
+  b->nodes = NULL;
+
   int rv;
   if ((rv = nng_sub0_open(&b->sub_sock)) != 0) {
     fprintf(stderr, "sub open: %s\n", nng_strerror(rv));
@@ -129,7 +130,7 @@ static int hb_init(hbusbroker_t* b) {
 
   // 订阅所有MSG_ID
   uint16_t magic = HBUS_MSG_MAGIC;
-  if ((rv = nng_setopt(b->sub_sock, NNG_OPT_SUB_SUBSCRIBE, &magic, sizeof magic)) != 0) {
+  if ((rv = nng_socket_set(b->sub_sock, NNG_OPT_SUB_SUBSCRIBE, &magic, sizeof magic)) != 0) {
     fprintf(stderr, "set subscribe: %s\n", nng_strerror(rv));
     nng_close(b->sub_sock);
     return 1;
@@ -166,8 +167,12 @@ static void hb_process_nodes(hbusbroker_t* b) {
   // uint64_t time_now = hbus::hcommon::clock_now_ns();
   // if (1 * 1e6 > time_now - time_last) {
   //   return;
-  // }
+  // } 
   // time_last = time_now;
+  if(0 == HIHASH_SIZE(b->nodes)){
+    return;
+  }
+
   hbuf_t buf_torm;
   hbuf_init(&buf_torm, 0);
   HIHASH_ITERATE it = HIHASH_ITERATE_BEGIN(b->nodes);
