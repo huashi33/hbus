@@ -2,9 +2,6 @@
 #include <time.h>
 #include <unistd.h>
 
-// #include <string>
-// #include <unordered_map>
-// #include <vector>
 #include "hcore/hds.h"
 #include "hbroker.h"
 #include "hcommon.h"
@@ -20,14 +17,6 @@
 // #define HBUS_BROKER_SUB_URL "ipc:///tmp/sub"
 // #define HBUS_BROKER_PUB_URL "ipc:///tmp/pub"
 
-// typedef struct TStatics_ {
-//   int count;
-//   int aaaa;
-//   double a1;
-//   double a2;
-//   double a3;
-//   char algn[256 - 32];
-// } TStatics_t;
 
 HIHASH_DEFINE(uint16_t, nodeinfo_t)
 
@@ -64,7 +53,6 @@ static void hb_process_sys(hbusbroker_t* b, hmsg_t* msg) {
     }
   }
 }
-// static void hb_process_msg(hbusbroker_t* b, hbus::hmsg_t* msg);
 static void hb_sub_cb(void* arg) {
   hbusbroker_t* b = (hbusbroker_t*)arg;
 
@@ -195,24 +183,6 @@ static void hb_process_nodes(hbusbroker_t* b) {
   }
   hbuf_deinit(&buf_torm);
 
-  // std::vector<uint16_t> torm;
-  // for (auto& n : b->nodes) {
-  //   if (!n.second.watchdog) {
-  //     torm.push_back(n.first);
-  //   }
-  //   std::string s;
-  //   hb_print_nodeinfo(b, s);
-  //   // fprintf(stderr,"%d watchdog down\n",n.first);
-  //   // fprintf(stderr, "%s", s.c_str());
-  //     // continue;
-  //   // }
-  //   --n.second.watchdog;
-  // }
-
-  // for(auto k:torm){
-  //   b->nodes.erase(k);
-  //   fprintf(stderr,"node remove:%d\n",k);
-  // }
 }
 
 // request node's status 

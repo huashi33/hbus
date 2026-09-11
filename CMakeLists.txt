@@ -19,21 +19,11 @@ add_library(hbus SHARED
     src/hcommon.c
     src/hnode.c
 )
-
-target_link_libraries(hbus PRIVATE
-    ${3RD_DIR}/lib/libhcore.a
-    ${3RD_DIR}/lib/libnng.a
-)
+target_link_libraries(hbus PRIVATE libhcore.a libnng.a)
 
 
 # file(GLOB SERVER_FILES ${CMAKE_SOURCE_DIR}/broker/*.cc)
-add_executable(hbroker
-    src/hbroker.c
-)
-
-target_link_libraries(hbroker PRIVATE
-    ${3RD_DIR}/lib/libhcore.a
-    ${3RD_DIR}/lib/libnng.a
-)
+add_executable(hbroker src/hbroker.c )
+target_link_libraries(hbroker PRIVATE libhcore.a libnng.a )
 
 add_subdirectory(test) 

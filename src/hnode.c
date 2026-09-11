@@ -50,10 +50,6 @@ static int hnode_on_status_req(const hmsg_t* hm, void* p) {
   hnode_status_t status = {.node_id = n->node_id,
                            .sub_msg_id_count = (uint16_t)HIHASH_SIZE(n->suber)};
   nng_msg_append(nmsg_heartbeat, &status, sizeof status);
-  // for (auto& s : n->suber) {
-  //   uint16_t msg_id = s.first;
-  //   nng_msg_append(nmsg_heartbeat, &msg_id, sizeof msg_id);
-  // }
   HIHASH_ITERATE it = HIHASH_ITERATE_BEGIN(n->suber);
   while (HIHASH_ITERATE_VALID(n->suber, it)) {
     uint16_t msg_id = HIHASH_GETK(n->suber, it);
@@ -114,16 +110,12 @@ static void hnode_on_subscrib_recv_cb(void* arg) {
   // fprintf(stdout,"<- msg_id(%d) %d->%d\n",hm->msg_id,hm->from,hm->to);
 
   // TODO:check crc
-
   // boardcast || own
   if (0 == hm->to || node->node_id == hm->to) {
-
-    // hbus_suber_t suber = HIHASH_GET(node->suber, hm->msg_id);
     HIHASH_ITERATE it = HIHASH_FIND(node->suber, hm->msg_id);
-    // auto it = node->suber.find(hm->msg_id);
     if (HIHASH_ITERATE_VALID(node->suber, it)) {
       // TODO:Thread pool
-      hbus_suber_t suber = HIHASH_GETV(node->suber, it);
+      hnode_suber_t suber = HIHASH_GETV(node->suber, it);
       suber.h(hm, suber.param);
     } else {
       fprintf(stderr,
@@ -139,28 +131,15 @@ static void hnode_on_subscrib_recv_cb(void* arg) {
 
 
 static int hnode_on_request(const hmsg_t* hm, void* p) {
-  // hnode_print_reqer((hnode_t*)p);
   // muti-thread
   hnode_t* n = (hnode_t*)p;
-  // auto it = n->reqer.find(hm->seq);
-  // uintptr_t ctx_ptr = HIHASH_GET(n->reqer, hm->seq);
   HIHASH_ITERATE it = HIHASH_FIND(n->reqer, hm->seq);
   if (HIHASH_ITERATE_VALID(n->reqer, it)) {
     uintptr_t ctx_ptr = HIHASH_GETV(n->reqer, it);
     hnode_req_ctx_t* ctx = (hnode_req_ctx_t*)ctx_ptr;
-    // hnode_req_ctx_t* ctx = it->second;
-    // fprintf(stdout, "replay: msg_id(%d) %d->%d:%u\n", hm->msg_id, hm->from,
-    //         hm->to, hm->payload_size);
     hbuf_push(ctx->replay, hm->payload, hm->payload_size);
     ctx->status = 2;
-    // if (ctx->replay >= hm->payload_size) {
-    //   memcpy(ctx->respond, hm->payload, hm->payload_size);
-    //   ctx->status = 2;
-    // } else {
-    //   // TODO
-    // }
     nng_cv_wake1(ctx->cv);
-    // ctx->cv.notify_one();
   }
   // fprintf(stdout, "on_rep out: msg_id(%d) %d->%d\n", hm->msg_id, hm->from,
   //         hm->to);
@@ -171,13 +150,10 @@ static void hnode_req_ctx_init(hnode_req_ctx_t* ctx,uint16_t msg_id_replay,uint3
   ctx->seq = seq;
   ctx->status = 1;
   ctx->msg_id_replay = msg_id_replay;
-  // hbuf_init(&ctx->replay, 0);
   nng_mtx_alloc(&ctx->mtx);
   nng_cv_alloc(&ctx->cv, ctx->mtx);
-  // return ctx;
 }
 static int hnode_req_ctx_fini(hnode_req_ctx_t* ctx){
-  // hbuf_deinit(&ctx->replay);
   nng_mtx_free(ctx->mtx);
   nng_cv_free(ctx->cv);
   return 0;
@@ -233,7 +209,7 @@ int hnode_publish(hnode_t* n, uint16_t topic_id, const void* d, uint32_t s,
   }
   return rv;
 }
-int hnode_subscribe(hnode_t* n, uint16_t topic_id, hbus_subscrib_handler_t h, void* param) {
+int hnode_subscribe(hnode_t* n, uint16_t topic_id, hnode_subscrib_handler_t h, void* param) {
   // multi thread
   if (!HIHASH_SIZE(n->suber)) {
     // lazy subscrib:start <- when first subscrib
@@ -261,9 +237,8 @@ int hnode_subscribe(hnode_t* n, uint16_t topic_id, hbus_subscrib_handler_t h, vo
     return rv;
   }
 
-  hbus_suber_t suber = {param, h};
+  hnode_suber_t suber = {param, h};
   HIHASH_SET(n->suber, topic_id, suber);
-  // n->suber[topic_id] = {param, h};
   fprintf(stdout, "node_id(%d) subscrib topic_id(%d)\n", n->node_id, topic_id);
   return rv;
 }
@@ -272,15 +247,10 @@ int hnode_request(hnode_t* n, uint16_t msg_id,uint16_t target_node_id,  hbuf_t* 
    hbuf_t* res,int timeout) {
   // check if subscrib replay
   uint16_t msg_id_replay = HBUS_MSG_REPLY(msg_id);
-  // auto it = suber.find(msg_id_replay);
   HIHASH_ITERATE it = HIHASH_FIND(n->suber, msg_id_replay);
   if (!HIHASH_ITERATE_VALID(n->suber, it)) {
     hnode_subscribe(n, msg_id_replay, hnode_on_request, n);
   }
-  // hbus_suber_t* suber = HIHASH_GET(n->suber, msg_id_replay);
-  // if (!suber) {
-  //   hnode_subscrib(n, msg_id_replay, hnode_on_request, n);
-  // }
 
   // init ctx,TODO: req ctx pool
   hnode_req_ctx_t ctx;
@@ -288,17 +258,10 @@ int hnode_request(hnode_t* n, uint16_t msg_id,uint16_t target_node_id,  hbuf_t* 
   ctx.replay = res;
   HIHASH_SET(n->reqer, ctx.seq, (uintptr_t)&ctx);
 
-  // hnode_print_reqer(n);
   // publish request
   hnode_publish(n, msg_id, req->data, req->len, target_node_id, ctx.seq);
   // fprintf(stdout, "request(%u): msg_id:%d,req_size:%zu,target_node_id:%d\n",
   //         ctx.seq, msg_id, req->len, target_node_id);
-
-  // wait
-  // std::unique_lock<std::mutex> l(ctx->mtx);
-  // bool ret = ctx->cv.wait_for(l, std::chrono::milliseconds(timeout),
-  //                             [&] { return 2 == ctx->status; });
-  
   nng_mtx_lock(ctx.mtx);
   nng_time expire = nng_clock() + timeout;
   int ret = 0;
@@ -310,17 +273,6 @@ int hnode_request(hnode_t* n, uint16_t msg_id,uint16_t target_node_id,  hbuf_t* 
   }
   HIHASH_DEL(n->reqer, ctx.seq);
   nng_mtx_unlock(ctx.mtx);
-
-  // fprintf(stdout, "request ret:%d\n", ret);
-  // release resource
-  // reqer.erase(ctx.seq);
-  // ctx->status = 0;
-  // delete ctx;
-  
   hnode_req_ctx_fini(&ctx);
-
-  int r = ret ? 0 : 1;
-  return r;
+  return ret;
 }
-
-// }  // namespace hbus
