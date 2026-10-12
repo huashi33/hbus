@@ -1,0 +1,24 @@
+#ifndef _HLOG_H_
+#define _HLOG_H_
+#include "hdef.h"
+#include "zlog.h"
+
+
+
+
+#define HLOG_DEBUG(FMT,...) dzlog_debug(FMT,##__VA_ARGS__)
+#define HLOG_INFO(FMT,...)  dzlog_info(FMT,##__VA_ARGS__)
+#define HLOG_WARN(FMT,...)  dzlog_warn(FMT,##__VA_ARGS__)
+#define HLOG_ERROR(FMT,...) dzlog_error(FMT,##__VA_ARGS__)
+
+
+
+
+
+//NULL == cfg: rotate 5 logs, each less 10mb,level info
+HFC_EXPORT int hlog_init(const char *appname,const char *cfgfilename);
+// auto call zlog_fini when exit
+HFC_EXPORT int hlog_fini(const char *appname);
+
+
+#endif
