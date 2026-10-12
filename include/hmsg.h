@@ -3,8 +3,7 @@
 #include <stdint.h>
 
 #define HBUS_MSG_MAGIC 0x55AA
-
-#define HBUS_APPID_BROKER 0xFFFF
+#define HBUS_APPID_BROKER 0xFFFE
 
 //every msg's replay define by macro HBUS_MSG_REPLY
 //so mgs_id must be <= INT16_MAX
@@ -13,14 +12,14 @@
 
 
 
-// namespace hbus {
+
 
 typedef struct hmsg_ {
   uint16_t magic;// 55aa
   uint16_t msg_id;
   uint16_t to;
   uint8_t version;
-  uint8_t align;
+  uint8_t flags;
   
   uint16_t crc_head;
   uint16_t from;
@@ -35,10 +34,7 @@ typedef struct hmsg_ {
 
 
 
-// }  // namespace hbus
 
-// pub/sub
-#define HBUS_MSG_PUBSUB_HEAD_SIZE 8
 
 
 

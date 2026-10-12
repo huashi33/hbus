@@ -4,26 +4,42 @@ project(hbus C)
 # set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_BUILD_TYPE Release)
 # set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(3RD_DIR /home/huashi/code)
+# 设置第三方库路径
+set(3RD_DIR_ROOT "${CMAKE_SOURCE_DIR}/3rd")
+set(3RD_LIBDIR "${3RD_DIR_ROOT}/lib")
+
+message(STATUS "当前系统名称: ${CMAKE_SYSTEM_NAME}")
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(3RD_LIBDIR "${3RD_LIBDIR}/windows/amd64")
+    else()
+        set(3RD_LIBDIR "${3RD_LIBDIR}/windows/x86")
+    endif()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+        set(3RD_LIBDIR "${3RD_LIBDIR}/linux/aarch64")
+    else()
+        set(3RD_LIBDIR "${3RD_LIBDIR}/linux/amd64")
+    endif()
+endif()
+message(STATUS "3RD_LIBDIR: ${3RD_LIBDIR}")
 include_directories(
-  ${3RD_DIR}/include
+  ${3RD_DIR_ROOT}/include
   ${CMAKE_SOURCE_DIR}/include
 )
 link_directories(
-  ${3RD_DIR}/lib
+  ${3RD_LIBDIR}
 )
 
-# set(CMAKE_BUILD_TYPE Release)
-# file(GLOB SRC_FILES ${CMAKE_SOURCE_DIR}/src/*.c)
 add_library(hbus SHARED
     src/hcommon.c
     src/hnode.c
 )
-target_link_libraries(hbus PRIVATE libhcore.a libnng.a)
+target_link_libraries(hbus PRIVATE libhcore.a libhv_static.a)
 
 
 # file(GLOB SERVER_FILES ${CMAKE_SOURCE_DIR}/broker/*.cc)
 add_executable(hbroker src/hbroker.c )
-target_link_libraries(hbroker PRIVATE libhcore.a libnng.a )
+target_link_libraries(hbroker PRIVATE libhcore.a libhv_static.a ws2_32 iphlpapi crypt32 secur32)
 
-add_subdirectory(test) 
+# add_subdirectory(test) 

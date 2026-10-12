@@ -30,7 +30,7 @@ TIPS:
 
 
 
-
+cmake -G "MinGW Makefiles" .. -DCMAKE_INSTALL_PREFIX=E:/code -DCMAKE_BUILD_TYPE=Release
 
 
 
