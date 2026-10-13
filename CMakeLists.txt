@@ -7,6 +7,7 @@ set(CMAKE_BUILD_TYPE Release)
 # 设置第三方库路径
 set(3RD_DIR_ROOT "${CMAKE_SOURCE_DIR}/3rd")
 set(3RD_LIBDIR "${3RD_DIR_ROOT}/lib")
+set(3RD_LIS )
 
 message(STATUS "当前系统名称: ${CMAKE_SYSTEM_NAME}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
@@ -31,15 +32,12 @@ link_directories(
   ${3RD_LIBDIR}
 )
 
-add_library(hbus SHARED
-    src/hcommon.c
-    src/hnode.c
-)
-target_link_libraries(hbus PRIVATE libhcore.a libhv_static.a)
+add_library(hbus SHARED src/hnode.c)
+target_link_libraries(hbus PRIVATE libhcore.a libhv_static.a ws2_32 iphlpapi crypt32 secur32)
 
 
 # file(GLOB SERVER_FILES ${CMAKE_SOURCE_DIR}/broker/*.cc)
 add_executable(hbroker src/hbroker.c )
 target_link_libraries(hbroker PRIVATE libhcore.a libhv_static.a ws2_32 iphlpapi crypt32 secur32)
 
-# add_subdirectory(test) 
+add_subdirectory(test) 

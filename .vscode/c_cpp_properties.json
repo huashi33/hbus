@@ -7,7 +7,6 @@
                 "${workspaceFolder}/3rd/include"
             ],
             "defines": [],
-            "compilerPath": "D:/Qt/Qt5.12.6/Tools/mingw730_64/bin/gcc",
             "cStandard": "c17",
             "cppStandard": "gnu++17"
         }
