@@ -14,26 +14,23 @@ HIHASH_DEFINE(uint16_t, hbuf_t);
 typedef struct hsession_ {
   hio_t *io;
   hbuf_t buf_topics;
-  // hhash_hbuf_t* hbus_ctx->map_topic_sessions; // key: topic, value: hbuf_t(session_t),global
+  // hhash_hbuf_t* hbus_ctx->map_topic_sessions; // key: topic, value:
+  // hbuf_t(session_t),global
   uint16_t node_id;
   uint16_t timeout_sec;
 } hsession_t;
 
-typedef struct hbus_ctx_{
+typedef struct hbus_ctx_ {
   // key: topic, value: hbuf_t(session_t),global
   hhash_hbuf_t *map_topic_sessions;
-}hbus_ctx_t;
+} hbus_ctx_t;
 
 #define HSESSION_TIMEOUT_SEC 30
 // #define HROKER_LOG(FMT,...) printf(FMT,##__VA_ARGS__)
 #define HROKER_LOG(FMT, ...) printf(FMT, ##__VA_ARGS__)
 #define HBROKER_LISTEN_PORT 55000
 
-
-
-
 #define HBROKER_RET_OK 0
-
 
 static hbus_ctx_t *hbus_ctx_get() {
   static hbus_ctx_t hbus_ctx;
@@ -44,61 +41,57 @@ static void hbus_ctx_free() {
   HIHASH_FINI(hbus_ctx->map_topic_sessions);
 }
 
-
-
-
-static int hbus_ctx_session_add(uint16_t topic,hsession_t* s){
+static int hbus_ctx_session_add(uint16_t topic, hsession_t *s) {
   hbus_ctx_t *hbus_ctx = hbus_ctx_get();
 
   HIHASH_ITERATE it = HIHASH_FIND(hbus_ctx->map_topic_sessions, topic);
-  if(HIHASH_ITERATE_VALID(hbus_ctx->map_topic_sessions, it)){
+  if (HIHASH_ITERATE_VALID(hbus_ctx->map_topic_sessions, it)) {
     // topic already exist
-    hbuf_t* buf_sessions = HIHASH_GETVPTR(hbus_ctx->map_topic_sessions, it);
+    hbuf_t *buf_sessions = HIHASH_GETVPTR(hbus_ctx->map_topic_sessions, it);
     size_t session_count = HBUF_PTR_COUNT(buf_sessions);
     for (size_t i = 0; i < session_count; ++i) {
       hsession_t *tmp_session = HBUF_PTR_AT(buf_sessions, hsession_t, i);
-      if(tmp_session == s){
+      if (tmp_session == s) {
         // already exist
-        HROKER_LOG("node(%d, %d) sub,already-sub,topic(%d):\n",
-           s->node_id,hio_fd(s->io), topic);
+        HROKER_LOG("node(%d, %d) sub,already-sub,topic(%d):\n", s->node_id,
+                   hio_fd(s->io), topic);
         return HBROKER_RET_OK;
       }
     }
     HBUF_PTR_PUSH(buf_sessions, s);
-  }else{
+  } else {
     // new topic
     hbuf_t b;
-    hbuf_init(&b, sizeof(hsession_t*) * 8);
+    hbuf_init(&b, sizeof(hsession_t *) * 8);
     HBUF_PTR_PUSH(&b, s);
     HIHASH_SET(hbus_ctx->map_topic_sessions, topic, b);
   }
   HROKER_LOG("node(%d,%d):+ topic(%d)\n", s->node_id, hio_fd(s->io), topic);
-  
+
   return HBROKER_RET_OK;
 }
-static int hbus_ctx_session_rm(uint16_t topic,hsession_t* s){
+static int hbus_ctx_session_rm(uint16_t topic, hsession_t *s) {
   hbus_ctx_t *hbus_ctx = hbus_ctx_get();
   HIHASH_ITERATE it = HIHASH_FIND(hbus_ctx->map_topic_sessions, topic);
-  if(!HIHASH_ITERATE_VALID(hbus_ctx->map_topic_sessions, it)){
+  if (!HIHASH_ITERATE_VALID(hbus_ctx->map_topic_sessions, it)) {
     HROKER_LOG("node(%d,%d):never sub topic(%d)\n", s->node_id, hio_fd(s->io),
                topic);
     return HBROKER_RET_OK;
   }
 
-  hbuf_t* buf_sessions = HIHASH_GETVPTR(hbus_ctx->map_topic_sessions, it);
+  hbuf_t *buf_sessions = HIHASH_GETVPTR(hbus_ctx->map_topic_sessions, it);
   size_t session_count = HBUF_PTR_COUNT(buf_sessions);
   for (size_t i = 0; i < session_count; ++i) {
     hsession_t *tmp_session = HBUF_PTR_AT(buf_sessions, hsession_t, i);
-    if(tmp_session == s){
+    if (tmp_session == s) {
       hbuf_remove(buf_sessions, i, sizeof(intptr_t));
-      HROKER_LOG("node(%d,%d):- topic(%d)\n", s->node_id, hio_fd(s->io),
-                  topic);
+      HROKER_LOG("node(%d,%d):- topic(%d)\n", s->node_id, hio_fd(s->io), topic);
 
       break;
     }
   }
 
-  if(0 ==  HBUF_PTR_COUNT(buf_sessions)){
+  if (0 == HBUF_PTR_COUNT(buf_sessions)) {
     hbuf_fini(buf_sessions);
     HIHASH_DEL(hbus_ctx->map_topic_sessions, topic);
   }
@@ -126,10 +119,10 @@ static hsession_t *hbus_seesion_alloc(hio_t *io) {
   return s;
 }
 static void hbus_seesion_free(hsession_t *s) {
-  size_t topic_num = HBUF_ITEM_COUNT(&s->buf_topics,uint16_t);
+  size_t topic_num = HBUF_ITEM_COUNT(&s->buf_topics, uint16_t);
   for (size_t i = 0; i < topic_num; ++i) {
-    uint16_t tmp_topic = *HBUF_ITEM_AT(&s->buf_topics,uint16_t,i);
-    hbus_ctx_session_rm(tmp_topic,s);
+    uint16_t tmp_topic = *HBUF_ITEM_AT(&s->buf_topics, uint16_t, i);
+    hbus_ctx_session_rm(tmp_topic, s);
   }
 
   hbuf_fini(&s->buf_topics);
@@ -153,11 +146,11 @@ double hcommon_clock_now_ms() {
   return now;
 }
 
-
 static void on_read(hio_t *io, void *buf, int readbytes) {
   hmsg_t *msg = (hmsg_t *)buf;
-  if(readbytes != sizeof(hmsg_t) + msg->payload_size){
-    HROKER_LOG("readbytes(%d) != sizeof(hmsg_t)+msg->payload_size(%d)\n",readbytes,msg->payload_size);
+  if (readbytes != sizeof(hmsg_t) + msg->payload_size) {
+    HROKER_LOG("readbytes(%d) != sizeof(hmsg_t)+msg->payload_size(%d)\n",
+               readbytes, msg->payload_size);
     return;
   }
 
@@ -175,13 +168,10 @@ static void on_read(hio_t *io, void *buf, int readbytes) {
       // hsession_t *sessions = (hsession_t *)sbuf->data;
       int send_num = 0;
       for (size_t i = 0; i < session_num; i++) {
-        hsession_t *tmp_sessions = HBUF_PTR_AT(buf_sessions,hsession_t,i);
-        if (msg->to & tmp_sessions->node_id) {
+        hsession_t *tmp_sessions = HBUF_PTR_AT(buf_sessions, hsession_t, i);
+        if (msg->to == tmp_sessions->node_id ||
+            HMSG_APPID_EVERYONR == msg->to) {
           ++send_num;
-          // HROKER_LOG("> forward:(%d)(%d)(%d,%d)\n",
-          //   msg->from,msg->msg_id,
-          //   sessions[i].node_id,hio_fd(sessions[i].io));
-          // pay[3] = hcommon_clock_now_ns();
           hio_write(tmp_sessions->io, buf, readbytes);
         }
       }
@@ -191,34 +181,34 @@ static void on_read(hio_t *io, void *buf, int readbytes) {
     }
   } else if (HMSG_FLAG_SUB == msg->flags) {
     // add sub
-    size_t topic_num = HBUF_ITEM_COUNT(&session->buf_topics,uint16_t);
+    size_t topic_num = HBUF_ITEM_COUNT(&session->buf_topics, uint16_t);
     for (size_t j = 0; j < topic_num; ++j) {
-      uint16_t tmp_topic = *HBUF_ITEM_AT(&session->buf_topics,uint16_t,j);
+      uint16_t tmp_topic = *HBUF_ITEM_AT(&session->buf_topics, uint16_t, j);
       if (tmp_topic == msg->msg_id) {
         // already exist
         HROKER_LOG("node(%d, %d) sub,already-sub,topic(%d):\n",
-            session->node_id,hio_fd(session->io), tmp_topic);
+                   session->node_id, hio_fd(session->io), tmp_topic);
         return;
       }
     }
-    hbus_ctx_session_add(msg->msg_id,session);
-    hbuf_push(&session->buf_topics, &msg->msg_id,sizeof(msg->msg_id));
+    hbus_ctx_session_add(msg->msg_id, session);
+    hbuf_push(&session->buf_topics, &msg->msg_id, sizeof(msg->msg_id));
 
   } else if (HMSG_FLAG_UNSUB == msg->flags) {
     // remove sub
-    size_t topic_num = HBUF_ITEM_COUNT(&session->buf_topics,uint16_t);
+    size_t topic_num = HBUF_ITEM_COUNT(&session->buf_topics, uint16_t);
     for (size_t j = 0; j < topic_num; ++j) {
-      uint16_t tmp_topic = ((uint16_t*)session->buf_topics.data)[j];
+      uint16_t tmp_topic = ((uint16_t *)session->buf_topics.data)[j];
       if (tmp_topic == msg->msg_id) {
         hbuf_remove(&session->buf_topics, j, sizeof(uint16_t));
-        hbus_ctx_session_rm(msg->msg_id,session);
+        hbus_ctx_session_rm(msg->msg_id, session);
         break;
       }
     }
   } else if (HMSG_FLAG_REGISTER == msg->flags) {
-    session->node_id =  msg->from;
+    session->node_id = msg->from;
     HROKER_LOG("register %d\n", session->node_id);
-  }else {
+  } else {
     HROKER_LOG("unknown msg->flags=%d\n", msg->flags);
   }
 }
@@ -271,6 +261,23 @@ static void on_accept(hio_t *io) {
   hio_read_start(io);
 }
 
+static void on_timer(htimer_t* timer) {
+  HROKER_LOG("timer: %llu\n", hcommon_clock_now_ns());
+  hbus_ctx_t *ctx = hbus_ctx_get();
+  HIHASH_ITERATE it = HIHASH_ITERATE_BEGIN(ctx->map_topic_sessions);
+  while (HIHASH_ITERATE_VALID(ctx->map_topic_sessions,it)) {
+    uint16_t msg_id = HIHASH_GETK(ctx->map_topic_sessions, it);
+    hbuf_t* buf_sessions = HIHASH_GETVPTR(ctx->map_topic_sessions, it);
+    size_t sessio_num = HBUF_PTR_COUNT(buf_sessions);
+    HROKER_LOG("topic %d:\n",msg_id);
+    for (size_t i = 0; i < sessio_num; ++i) {
+      hsession_t* s = HBUF_PTR_AT(buf_sessions, hsession_t, i);
+      HROKER_LOG("-- %d,%d:\n",s->node_id,hio_fd(s->io));
+    }
+    it = HIHASH_ITERATE_NEXT(it);
+  }
+}
+
 int main(int argc, char **argv) {
   printf("hello \n");
   int port = HBROKER_LISTEN_PORT;
@@ -288,6 +295,7 @@ int main(int argc, char **argv) {
     return -1;
   }
 
+  htimer_add(loop, on_timer, 2000, INFINITE);
   printf("listen: 0.0.0.0:%d ...\n", port);
 
   // 3. 启动事件循环（进入主运行事件轮询，阻塞）

@@ -9,7 +9,7 @@
 #define TPUB_APPID 100
 #define TSUB_APPID 2
 #define TTOPIC_ID 0x0100
-
+#define HBROKER_LISTEN_PORT 55000
 uint64_t hcommon_clock_now_ns() {
   struct timespec at;
   clock_gettime(CLOCK_MONOTONIC, &at);
@@ -83,7 +83,13 @@ static int tsub(int node_id,int count){
   int r;
   TPStatics_t tps;
   memset(&tps,0,sizeof tps);
-  hnode_t n = {node_id};
+  hnode_t n;
+  memset(&n,0,sizeof(n));
+  n.id = node_id;
+  strncpy(n.server_ip, "127.0.0.1", sizeof(n.server_ip)-1);
+  n.server_port = HBROKER_LISTEN_PORT;
+
+
   r = hnode_init(&n);
 
   while(HNODE_STATUS_CONNECTED != n.status){

@@ -1,8 +1,9 @@
 # hbus
 process communication framework
 TODO
-[x] disconnect,then release resource
-[x] auto-reconnect
+[o] disconnect,then release resource
+[o] makeup hnode
+[o] auto-reconnect
 [x] echo time test
 [x] thread-safe 
 [x] request
