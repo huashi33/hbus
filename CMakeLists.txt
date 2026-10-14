@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(hbus C)
 
-# set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
+# set(CMAKE_BUILD_TYPE Release)
 # set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # 设置第三方库路径
 set(3RD_DIR_ROOT "${CMAKE_SOURCE_DIR}/3rd")

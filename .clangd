@@ -1,0 +1,25 @@
+# @AI_GENERATED: hbus 的 clangd 配置，与 CMakeLists.txt 中的 include_directories / link_directories 保持一致
+CompileFlags:
+  Add:
+    # 工具链：MinGW-w64 (D:/mingw64, gcc 7.3.0, x86_64-w64-mingw32)
+    - --target=x86_64-w64-mingw32
+    - --sysroot=D:/mingw64
+    # MinGW 5.x 的 float.h 不识别 clang 自带的 float.h，会继续 include_next 导致 'float.h' not found；
+    # 预定义 GCC float.h 的头文件保护宏，让 MinGW float.h 停止 include_next（仅影响 clangd，不影响实际编译）
+    - -D_FLOAT_H___
+    # 头文件目录
+    - -IE:/code/hbus/include
+    - -IE:/code/hbus/3rd/include
+    # 库目录（clangd 不做链接，仅与构建配置保持一致）
+    - -LE:/code/hbus/3rd/lib/windows/amd64
+    # 屏蔽 -L 等链接参数在仅编译时产生的 unused 警告
+    - -Wno-unused-command-line-argument
+
+---
+# 项目是纯 C 工程：项目头文件和 hcore 头文件按 C 头文件解析（默认会被当成 Objective-C++）
+If:
+  PathMatch: (include|src|test|3rd/include/hcore)/.*\.h
+CompileFlags:
+  Add:
+    - -xc-header
+# @AI_GENERATED: end
