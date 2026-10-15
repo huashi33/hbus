@@ -157,11 +157,11 @@ static void on_read(hio_t *io, void *buf, int readbytes) {
   hbus_ctx_t *hbus_ctx = hbus_ctx_get();
   hsession_t *session = (hsession_t *)hio_context(io);
   // HROKER_LOG("<[%d](%d)-(%d)->(%d)\n",readbytes,msg->from,msg->msg_id,msg->to);
-  if (HMSG_FLAG_DATA == msg->flags) {
+  if (HMSG_FLAG_DATA == msg->flags || HMSG_FLAG_REQUEST == msg->flags || HMSG_FLAG_RESPOND == msg->flags) {
     // route to node
     // uint64_t* pay = (uint64_t*)msg->payload;
     // pay[2] = hcommon_clock_now_ns();
-    HIHASH_ITERATE it = HIHASH_FIND(hbus_ctx->map_topic_sessions, msg->msg_id);
+    HIHASH_ITERATE it = HIHASH_FIND(hbus_ctx->map_topic_sessions, msg->topic);
     if (HIHASH_ITERATE_VALID(hbus_ctx->map_topic_sessions, it)) {
       hbuf_t *buf_sessions = HIHASH_GETVPTR(hbus_ctx->map_topic_sessions, it);
       size_t session_num = HBUF_PTR_COUNT(buf_sessions);
@@ -177,31 +177,31 @@ static void on_read(hio_t *io, void *buf, int readbytes) {
       }
       HROKER_LOG("> forward:byte(%d) num:%d\n", readbytes, send_num);
     } else {
-      HROKER_LOG("< not-found,(%d)(%d)(%d)\n", msg->from, msg->msg_id, msg->to);
+      HROKER_LOG("< not-found,(%d)(%d)(%d)\n", msg->from, msg->topic, msg->to);
     }
   } else if (HMSG_FLAG_SUB == msg->flags) {
     // add sub
     size_t topic_num = HBUF_ITEM_COUNT(&session->buf_topics, uint16_t);
     for (size_t j = 0; j < topic_num; ++j) {
       uint16_t tmp_topic = *HBUF_ITEM_AT(&session->buf_topics, uint16_t, j);
-      if (tmp_topic == msg->msg_id) {
+      if (tmp_topic == msg->topic) {
         // already exist
         HROKER_LOG("node(%d, %d) sub,already-sub,topic(%d):\n",
                    session->node_id, hio_fd(session->io), tmp_topic);
         return;
       }
     }
-    hbus_ctx_session_add(msg->msg_id, session);
-    hbuf_push(&session->buf_topics, &msg->msg_id, sizeof(msg->msg_id));
+    hbus_ctx_session_add(msg->topic, session);
+    hbuf_push(&session->buf_topics, &msg->topic, sizeof(msg->topic));
 
   } else if (HMSG_FLAG_UNSUB == msg->flags) {
     // remove sub
     size_t topic_num = HBUF_ITEM_COUNT(&session->buf_topics, uint16_t);
     for (size_t j = 0; j < topic_num; ++j) {
       uint16_t tmp_topic = ((uint16_t *)session->buf_topics.data)[j];
-      if (tmp_topic == msg->msg_id) {
+      if (tmp_topic == msg->topic) {
         hbuf_remove(&session->buf_topics, j, sizeof(uint16_t));
-        hbus_ctx_session_rm(msg->msg_id, session);
+        hbus_ctx_session_rm(msg->topic, session);
         break;
       }
     }
