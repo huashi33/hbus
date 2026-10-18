@@ -157,7 +157,7 @@ static void on_read(hio_t *io, void *buf, int readbytes) {
   hbus_ctx_t *hbus_ctx = hbus_ctx_get();
   hsession_t *session = (hsession_t *)hio_context(io);
   // HROKER_LOG("<[%d](%d)-(%d)->(%d)\n",readbytes,msg->from,msg->msg_id,msg->to);
-  if (HMSG_FLAG_DATA == msg->flags || HMSG_FLAG_REQUEST == msg->flags || HMSG_FLAG_RESPOND == msg->flags) {
+  if (HMSG_FLAG_PUBDATA == msg->flags || HMSG_FLAG_REQUEST == msg->flags || HMSG_FLAG_RESPOND == msg->flags) {
     // route to node
     // uint64_t* pay = (uint64_t*)msg->payload;
     // pay[2] = hcommon_clock_now_ns();
@@ -173,6 +173,7 @@ static void on_read(hio_t *io, void *buf, int readbytes) {
             HMSG_APPID_EVERYONR == msg->to) {
           ++send_num;
           hio_write(tmp_sessions->io, buf, readbytes);
+          // HROKER_LOG("> forward:byte(%d),(%d)-(%d)-(%d)\n", readbytes,  msg->from, msg->topic, msg->to);
         }
       }
       HROKER_LOG("> forward:byte(%d) num:%d\n", readbytes, send_num);

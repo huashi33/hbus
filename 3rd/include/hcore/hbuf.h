@@ -21,6 +21,9 @@ HFC_EXPORT int hbuf_remove(hbuf_t* b, size_t index, size_t dSize);
 HFC_EXPORT int hbuf_clear(hbuf_t* b);
 HFC_EXPORT int hbuf_grow(hbuf_t* b, size_t wish_size);
 
+HFC_EXPORT int hbuf_pop(hbuf_t* b, void* d, size_t* offset,size_t size);
+
+
 #define HBUF_ITEM_COUNT(BUF,TYPE) ((BUF)->len/sizeof(TYPE))
 #define HBUF_ITEM_AT(BUF,TYPE,INDEX) (((TYPE*)(BUF)->data) + INDEX)
 #define HBUF_ITEM_SET(BUF,TYPE,V,INDEX)  ((TYPE*)((BUF)->data))[INDEX] = (V)

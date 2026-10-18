@@ -6,7 +6,7 @@
 #define HMSG_APPID_BROKER 0xFFFE
 #define HMSG_APPID_EVERYONR 0xFFFF
 #define HMSG_FLAG_REGISTER 0x00
-#define HMSG_FLAG_DATA 0x01
+#define HMSG_FLAG_PUBDATA 0x01
 #define HMSG_FLAG_SUB 0x02
 #define HMSG_FLAG_UNSUB 0x03
 #define HMSG_FLAG_REQUEST 0x04
@@ -15,7 +15,7 @@
 //every msg's replay define by macro HMSG_REPLY
 //so mgs_id must be <= INT16_MAX
 // #define HMSG_REPLY(MSGID) (UINT16_MAX-MSGID)
-#define HMSG_MSGID_CONNECT 0x0000
+#define HMSG_MSGID_STATUS 0xF000
 
 
 

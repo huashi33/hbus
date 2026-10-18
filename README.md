@@ -10,7 +10,7 @@ TODO
 
 
 cmake -G "MinGW Makefiles" .. -DCMAKE_INSTALL_PREFIX=E:/code -DCMAKE_BUILD_TYPE=Release
-
+Copy-Item 'E:\code\hbus\build\libhbus.dll' 'E:\code\hbus\build\test\libhbus.dll'
 
 
 

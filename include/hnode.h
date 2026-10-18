@@ -18,8 +18,11 @@
 
 
 #define HNODE_RET_OK 0
-#define HNODE_RET_EDISCONNECT 1
-#define HNODE_RET_ETIMEOUT 2
+#define HNODE_RET_EPARAM 1
+#define HNODE_RET_EDISCONNECT 2
+#define HNODE_RET_ETIMEOUT 3
+#define HNODE_RET_ESEND 4
+
 
 typedef void(*hnode_subscrib_handler_func_t)(const hmsg_t*,void*);
 typedef struct hnode_subscrib_handler_{
@@ -30,6 +33,7 @@ typedef struct hrequest_ctx_{
   pthread_mutex_t mtx;
   pthread_cond_t cv;
   hbuf_t* rep;
+  uint32_t seq;
   int complet;
 }hrequest_ctx_t;
 HIHASH_DEFINE(uint16_t,hnode_subscrib_handler_t)
@@ -44,14 +48,13 @@ typedef struct hnode_ hnode_t;
 hnode_t* hnode_init(uint16_t id,const char* svr_ip,uint16_t svr_port);
 int hnode_destroy(hnode_t*);
 int hnode_status(hnode_t*);
-
+uint16_t hnode_id(hnode_t* node);
+// 
 int hnode_publish(hnode_t* node, uint16_t topic, uint16_t to_node_id, const void* payload, uint32_t payload_size);
 int hnode_subscribe(hnode_t* node, uint16_t topic,hnode_subscrib_handler_func_t handle,void* userdata);
 int hnode_unsubscribe(hnode_t* node, uint16_t topic);
 // 
 int hnode_request(hnode_t* node, uint16_t topic, uint16_t to_node_id, hbuf_t* req,hbuf_t* rep,uint32_t timeout);
 
-int hnode_publish_in_threadio(hnode_t* node,void* d,size_t s);
 
-uint16_t hnode_id(hnode_t* node);
 #endif

@@ -9,7 +9,7 @@
 #include "hnode.h"
 #define TPUB_APPID 100
 #define TSUB_APPID 2
-#define TTOPIC_ID 0x0001
+#define TTOPIC_ID 12345
 
 
 #define HBROKER_LISTEN_PORT 55000
@@ -60,14 +60,14 @@ static void tsub_handle(const hmsg_t* hm,void* p){
   printf("all:%.3f us\n",cost_ns);
 
 
-  uint64_t tsend= *((uint64_t*)hm->payload);
-  uint64_t trecv = hcommon_clock_now_ns();
-  double cost = (trecv - tsend)/1e3;
+  // uint64_t tsend= *((uint64_t*)hm->payload);
+  // uint64_t trecv = hcommon_clock_now_ns();
+  // double cost = (trecv - tsend)/1e3;
   // printf("cost:%.3f us\n",cost);
 
-  TPStatics_t* tps = (TPStatics_t*)p;
-  ++tps->msg_total;
-  tps->time_total += (hcommon_clock_now_ns() - tsend)/1e6;
+  // TPStatics_t* tps = (TPStatics_t*)p;
+  // ++tps->msg_total;
+  // tps->time_total += (hcommon_clock_now_ns() - tsend)/1e6;
   
   
   
@@ -92,6 +92,9 @@ static int tsub(int node_id,int count){
     sleep(1);
   }
   r = hnode_subscribe(n,TTOPIC_ID,tsub_handle,&tps);
+  r = hnode_subscribe(n,TTOPIC_ID+1,tsub_handle,&tps);
+  r = hnode_subscribe(n,TTOPIC_ID+2,tsub_handle,&tps);
+  r = hnode_subscribe(n,TTOPIC_ID+3,tsub_handle,&tps);
   // int count = 10;
   while (count--){
     sleep(1);
@@ -110,26 +113,35 @@ static int treq(uint16_t node_id,uint16_t server_node_id,int count){
   // size_t size = (sizeof (hnode_status_t) )+100*sizeof(uint16_t);
   // hnode_status_t *status = (hnode_status_t *)malloc(size);
   uint64_t t1 = hcommon_clock_now_ns();
-  hbuf_t req, res;
+  hbuf_t req = {0}, res = {0};
+
   hbuf_init(&res, 0);
-  r = hnode_request(n,HMSG_MSGID_CONNECT,server_node_id,&req,&res,1000);
+  r = hnode_request(n,HMSG_MSGID_STATUS,server_node_id,&req,&res,1000);
   uint64_t t = hcommon_clock_now_ns() - t1;
   double dt = t / 1e3;
   fprintf(stdout,"cost-0:%.3f us\n",dt);
-  fprintf(stdout,"repond:%s\n",res.data);
+  size_t respond_sub_num = HBUF_ITEM_COUNT(&res,uint16_t);
+  for(size_t i = 0;i < respond_sub_num;++i){
+    uint16_t respond_sub_topic = *HBUF_ITEM_AT(&res,uint16_t,i);
+    fprintf(stdout,"[%zu]%d\n",i,respond_sub_topic);
+  }
+
 
   t1 = hcommon_clock_now_ns();
   for(int i = 0;i<count;++i){
     hbuf_clear(&res);
-    r = hnode_request(n,HMSG_MSGID_CONNECT,server_node_id,&req,&res,1000); 
+    r = hnode_request(n,HMSG_MSGID_STATUS,server_node_id,&req,&res,1000); 
   }
   t = hcommon_clock_now_ns() - t1;
   dt = t / 1e3;
 
   
   fprintf(stdout,"cost-%d:%.3f us\n",count,dt);
-  fprintf(stdout,"repond:%s\n",res.data);
-
+  respond_sub_num = HBUF_ITEM_COUNT(&res,uint16_t);
+  for(size_t i = 0;i < respond_sub_num;++i){
+    uint16_t respond_sub_topic = *HBUF_ITEM_AT(&res,uint16_t,i);
+    fprintf(stdout,"[%zu]%d\n",i,respond_sub_topic);
+  }
   // free(status);
   hbuf_fini(&res);
   return 0;
@@ -151,7 +163,7 @@ static void t_respond_connect(const hmsg_t* msg,void* p){
 
 
   
-  hnode_publish_in_threadio(node,respond,sizeof(hmsg_t)+ 8);
+  // hnode_publish(node,respond,sizeof(hmsg_t)+ 8);
 }
 static int trep(int node_id){
   hnode_t *n = hnode_init(node_id, "127.0.0.1",HBROKER_LISTEN_PORT);
@@ -159,7 +171,7 @@ static int trep(int node_id){
     sleep(1);
   }
 
-  hnode_subscribe(n, HMSG_MSGID_CONNECT, t_respond_connect, n);
+  hnode_subscribe(n, HMSG_MSGID_STATUS, t_respond_connect, n);
   
   while(1){
     sleep(1);
