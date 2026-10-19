@@ -5,30 +5,32 @@
 #define HMSG_MAGIC 0x55AA
 #define HMSG_APPID_BROKER 0xFFFE
 #define HMSG_APPID_EVERYONR 0xFFFF
-#define HMSG_FLAG_REGISTER 0x00
-#define HMSG_FLAG_PUBDATA 0x01
-#define HMSG_FLAG_SUB 0x02
-#define HMSG_FLAG_UNSUB 0x03
-#define HMSG_FLAG_REQUEST 0x04
-#define HMSG_FLAG_RESPOND 0x05
+// MSG CMD
+#define HMSG_FCMD_REGISTER 0x00
+#define HMSG_FCMD_DATA 0x10
+#define HMSG_FCMD_SUB 0x20
+#define HMSG_FCMD_UNSUB 0x30
+// MSG DATA
+#define HMSG_FDATA_PUBSUB 0x00
+#define HMSG_FDATA_REQREP 0x01
 
 //every msg's replay define by macro HMSG_REPLY
 //so mgs_id must be <= INT16_MAX
 // #define HMSG_REPLY(MSGID) (UINT16_MAX-MSGID)
-#define HMSG_MSGID_STATUS 0xF000
+#define HMSG_MSGID_STATUS 0x0000
 
 
 
 
 typedef struct hmsg_ {
   uint16_t magic;// 55aa
-  uint16_t topic;
-  uint16_t to;//0xFFFF means everyone
+  uint16_t crc_head;
   uint8_t version;
   uint8_t flags;
+  uint16_t topic;
   
-  uint16_t crc_head;
   uint16_t from;
+  uint16_t to;//0xFFFF means everyone
   uint32_t seq;
 
   uint64_t timestamp_us;
@@ -39,8 +41,12 @@ typedef struct hmsg_ {
 } hmsg_t;
 
 
+#define HMSG_FLAGS(FCMD,FDATA) ((FCMD)|(FDATA))
+#define HMSG_FLAGS_CMD(FLAGS) ((FLAGS)&0xF0)
+#define HMSG_FLAGS_DATA(FLAGS) ((FLAGS)&0x0F)
 
-
+#define HMSG_TOPICEX(VER,FLAGS,TPC) ((VER<<24)|(FLAGS<<16)|(TPC))
+#define HMSG_TOPICEX_INMSG(msg) HMSG_TOPICEX(msg->version,msg->flags,msg->topic)
 
 
 

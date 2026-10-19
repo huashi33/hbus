@@ -15,8 +15,11 @@
 #include "hnode.h"
 
 #define HNODE_REQUEST_TIMEOUT_MAX 10000  // 10S
+#define HNODE_REQUEST_COUNT_INIT 16
 #define HNODE_RECONN_INTERVAL 2
 #define HROKER_LOG(FMT, ...) printf(FMT, ##__VA_ARGS__)
+
+// typedef struct h
 
 typedef struct hnode_ {
   uint16_t id;
@@ -29,8 +32,8 @@ typedef struct hnode_ {
 
   char server_ip[16];
 
-  hhash_hnode_subscrib_handler_t* map_subpool;//subscrib
-  hhash_intptr_t* map_reppool;//request
+  hhash_hnode_subscrib_handler_t* map_subpool;  // subscrib
+  // hhash_intptr_t* map_reppool;//request
 
   hio_t* io;
   hloop_t* loop;
@@ -38,10 +41,11 @@ typedef struct hnode_ {
   pthread_t thread_io;
   hatomic_uint32_t ato_req_seq;
   pthread_mutex_t map_subpool_mtx;
-  pthread_mutex_t map_reppool_mtx;
-  
-} hnode_t;
+  // pthread_mutex_t map_reppool_mtx;
+  int req_ctx_count;
+  hrequest_ctx_t* req_ctx;
 
+} hnode_t;
 
 static uint64_t hcommon_clock_now_ns() {
   struct timespec at;
@@ -79,18 +83,20 @@ static unpack_setting_t* hnode_unpack_setting_get() {
   }
   return &unpack_setting;
 }
-static int hnode_topic_had_sub(hnode_t* node,uint16_t topic){
+static int hnode_topic_had_sub(hnode_t* node, int32_t topic_ex) {
   int r = HNODE_RET_OK;
   pthread_mutex_lock(&node->map_subpool_mtx);
-  r = HIHASH_EXIST(node->map_subpool,topic);
+  r = HIHASH_EXIST(node->map_subpool, topic_ex);
   pthread_mutex_unlock(&node->map_subpool_mtx);
   return r;
 }
 
-
 static void hnode_on_connect(hio_t* io);
 static void hnode_on_close(hio_t* io);
-static void hnode_on_respond(const hmsg_t* msg, hnode_t* node);
+static void hnode_on_respond(const hmsg_t* msg, void* p);
+static int hnode_subscribe_i(hnode_t* node, uint8_t flag_data, uint16_t topic,
+                            hnode_subscrib_handler_func_t handle_func,
+                            void* handle_func_param);
 
 static void hnode_reconnect(htimer_t* timer) {
   hnode_t* node = (hnode_t*)hevent_userdata(timer);
@@ -112,6 +118,9 @@ static void hnode_on_close(hio_t* io) {
 }
 static void hnode_on_read(hio_t* io, void* buf, int readbytes) {
   hmsg_t* msg = (hmsg_t*)buf;
+  int32_t topic_ex = HMSG_TOPICEX_INMSG(msg);
+  HROKER_LOG("recv msg,(%d)-(%08X)-(%d),bytes(%d)\n", msg->from, topic_ex,
+             msg->to, readbytes);
   if (sizeof(hmsg_t) > readbytes ||
       (sizeof(hmsg_t) + msg->payload_size != readbytes)) {
     HROKER_LOG("recv invalid data, byte(%d)\n", readbytes);
@@ -119,49 +128,50 @@ static void hnode_on_read(hio_t* io, void* buf, int readbytes) {
   }
 
   hnode_t* node = (hnode_t*)hio_context(io);
-  HROKER_LOG("recv msg,(%d)-(%d)-(%d),flags:%d,bytes(%d)\n", msg->from,
-                msg->topic, msg->to,msg->flags, readbytes);
-  if (HMSG_FLAG_PUBDATA == msg->flags || HMSG_FLAG_REQUEST == msg->flags) {
-    HIHASH_ITERATE it = HIHASH_FIND(node->map_subpool, msg->topic);
+
+  if (HMSG_FCMD_DATA & msg->flags) {
+    HIHASH_ITERATE it = HIHASH_FIND(node->map_subpool, topic_ex);
     if (HIHASH_ITERATE_VALID(node->map_subpool, it)) {
       hnode_subscrib_handler_t handler = HIHASH_GETV(node->map_subpool, it);
       handler.handle(msg, handler.handle_param);
     }
-  } else if (HMSG_FLAG_RESPOND == msg->flags) {
-    return hnode_on_respond(msg, node);
   } else {
-    HROKER_LOG("recv invalid msg,(%d)-(%d)-(%d),flags:%d,bytes(%d)\n", msg->from,
-               msg->topic, msg->to,msg->flags, readbytes);
+    HROKER_LOG("recv invalid msg,(%d)-(%08X)-(%d),bytes(%d)\n", msg->from,
+               topic_ex, msg->to, readbytes);
   }
 }
 static void hnode_register(hnode_t* node) {
-  hmsg_t msg = {.topic = 0,
+  hmsg_t msg = {.magic = HMSG_MAGIC,
+                .version = 0,
+                .flags = HMSG_FCMD_REGISTER,
+                .topic = 0,
                 .from = node->id,
-                .flags = HMSG_FLAG_REGISTER,
+                .to = HMSG_APPID_BROKER,
+                .seq = 0,
                 .payload_size = 0};
   hio_write(node->io, &msg, sizeof(hmsg_t));
 }
 
-
-static void hnode_on_status(const hmsg_t* msg,void* p){
+static void hnode_on_status(const hmsg_t* msg, void* p) {
   hnode_t* node = (hnode_t*)p;
-  hmsg_t msg_ret = {
-    .topic = msg->topic,
-    .from = node->id,
-    .to = msg->from,
-    .flags = HMSG_FLAG_RESPOND,
-    .seq = msg->seq
-  };
+  hmsg_t msg_ret = {.magic = HMSG_MAGIC,
+                    .version = 0,
+                    .flags = HMSG_FLAGS(HMSG_FCMD_DATA, HMSG_FDATA_REQREP),
+                    .topic = msg->topic,
+                    .from = node->id,
+                    .to = msg->from,
+                    .seq = msg->seq,
+                    .payload_size = 0};
   hbuf_t buf;
-  hbuf_init(&buf,sizeof(hmsg_t)*2);
-  hbuf_push(&buf,&msg_ret,sizeof(msg_ret));
+  hbuf_init(&buf, sizeof(hmsg_t) * 2);
+  hbuf_push(&buf, &msg_ret, sizeof(msg_ret));
 
   uint32_t payload_size = 0;
   pthread_mutex_lock(&node->map_subpool_mtx);
   HIHASH_ITERATE it = HIHASH_ITERATE_BEGIN(node->map_subpool);
-  while(HIHASH_ITERATE_VALID(node->map_subpool,it)){
-    uint16_t tpc = HIHASH_GETK(node->map_subpool,it);
-    hbuf_push(&buf,&tpc,sizeof(tpc));
+  while (HIHASH_ITERATE_VALID(node->map_subpool, it)) {
+    uint16_t tpc = HIHASH_GETK(node->map_subpool, it);
+    hbuf_push(&buf, &tpc, sizeof(tpc));
     it = HIHASH_ITERATE_NEXT(it);
     payload_size += sizeof(tpc);
   }
@@ -169,11 +179,11 @@ static void hnode_on_status(const hmsg_t* msg,void* p){
   hmsg_t* p_msg_ret = (hmsg_t*)buf.data;
   p_msg_ret->payload_size = payload_size;
 
-
-  hio_write(node->io,buf.data,buf.len);
+  hio_write(node->io, buf.data, buf.len);
   hbuf_fini(&buf);
 
-  HROKER_LOG("respond status:(%d)-(%d)-(%d)\n", msg_ret.from,msg_ret.topic,msg_ret.to);
+  HROKER_LOG("respond status:(%d)-(%08X)-(%d)\n", msg_ret.from, HMSG_TOPICEX_INMSG(p_msg_ret),
+             msg_ret.to);
 }
 
 static void hnode_on_connect(hio_t* io) {
@@ -192,21 +202,16 @@ static void hnode_on_connect(hio_t* io) {
   hio_read_start(io);
   hatomic_store(&node->status, HNODE_STATUS_CONNECTED);
   HROKER_LOG("connected: %d\n", node->id);
-  // 
-  hnode_subscribe(node,HMSG_MSGID_STATUS,hnode_on_status,node);
+  //
+  hnode_subscribe_i(node, HMSG_FDATA_REQREP,
+                    HMSG_MSGID_STATUS, hnode_on_status, node);
 }
 
 static void* hnode_thread_io_main(void* p) {
   hnode_t* node = (hnode_t*)p;
   HROKER_LOG("thread start\n");
+  pthread_mutex_init(&node->map_subpool_mtx, NULL);
   HIHASH_INIT(node->map_subpool);
-  HIHASH_INIT(node->map_reppool);
-
-  node->reconn_cnt = 0;
-  if (0 == node->reconn_interval) {
-    node->reconn_interval = HNODE_RECONN_INTERVAL;
-    node->reconn_max_retry_cnt = 10;
-  }
 
   node->loop = hloop_new(0);
   // create reconnect timer
@@ -225,20 +230,32 @@ static void* hnode_thread_io_main(void* p) {
 
   hloop_free(&node->loop);
   HIHASH_FINI(node->map_subpool);
-  HIHASH_FINI(node->map_reppool);
   HROKER_LOG("thread stop\n");
   return 0;
 }
 
-hnode_t* hnode_init(uint16_t id, const char* svr_ip, uint16_t svr_port) {
+hnode_t* hnode_init(uint16_t id, const char* svr_ip, uint16_t svr_port,
+                    int request_count) {
   hnode_t* node = (hnode_t*)calloc(1, sizeof(hnode_t));
   node->id = id;
   node->status = HNODE_STATUS_INIT;
   strncpy(node->server_ip, svr_ip, sizeof(node->server_ip) - 1);
   node->server_port = svr_port;
-  
-  pthread_mutex_init(&node->map_subpool_mtx, NULL);
-  pthread_mutex_init(&node->map_reppool_mtx, NULL);
+  node->req_ctx_count = HNODE_REQUEST_COUNT_INIT;
+  HC_GETMINPOW(request_count, node->req_ctx_count);
+  node->req_ctx =
+      (hrequest_ctx_t*)calloc(node->req_ctx_count, sizeof(hrequest_ctx_t));
+  for (int i = 0; i < node->req_ctx_count; ++i) {
+    hrequest_ctx_t* ctx = node->req_ctx + i;
+    pthread_mutex_init(&ctx->mtx, NULL);
+    pthread_cond_init(&ctx->cv, NULL);
+  }
+  node->reconn_cnt = 0;
+  if (0 == node->reconn_interval) {
+    node->reconn_interval = HNODE_RECONN_INTERVAL;
+    node->reconn_max_retry_cnt = 10;
+  }
+
   pthread_create(&node->thread_io, NULL, hnode_thread_io_main, node);
   return node;
 }
@@ -252,8 +269,15 @@ int hnode_destroy(hnode_t* node) {
 
     hloop_stop(node->loop);
     pthread_join(node->thread_io, NULL);
-    pthread_mutex_destroy(&node->map_reppool_mtx);
     pthread_mutex_destroy(&node->map_subpool_mtx);
+
+    for (int i = 0; i < node->req_ctx_count; ++i) {
+      hrequest_ctx_t* ctx = node->req_ctx + i;
+      pthread_mutex_destroy(&ctx->mtx);
+      pthread_cond_destroy(&ctx->cv);
+    }
+    free(node->req_ctx);
+
     free(node);
   }
   return HNODE_RET_OK;
@@ -266,11 +290,13 @@ int hnode_publish(hnode_t* node, uint16_t topic, uint16_t to_node_id,
     return HNODE_RET_EDISCONNECT;
   }
   hmsg_t* msg = (hmsg_t*)calloc(1, sizeof(hmsg_t) + payload_size);
+  msg->magic = HMSG_MAGIC;
+  msg->version = 0;
+  msg->flags = HMSG_FLAGS(HMSG_FCMD_DATA, HMSG_FDATA_PUBSUB);
   msg->topic = topic;
   msg->from = node->id;
   msg->to = to_node_id;
-  msg->flags = HMSG_FLAG_PUBDATA;
-  msg->payload_size = payload_size;
+  msg->seq = 0, msg->payload_size = payload_size;
   if (payload_size) {
     memcpy(msg->payload, payload, payload_size);
   }
@@ -280,28 +306,33 @@ int hnode_publish(hnode_t* node, uint16_t topic, uint16_t to_node_id,
   return HNODE_RET_OK;
 }
 
-
-int hnode_subscribe(hnode_t* node, uint16_t topic,
-                    hnode_subscrib_handler_func_t handle_func,
-                    void* handle_func_param) {
+static int hnode_subscribe_i(hnode_t* node, uint8_t flag_data, uint16_t topic,
+                             hnode_subscrib_handler_func_t handle_func,
+                             void* handle_func_param) {
   if (hatomic_load(&node->status) != HNODE_STATUS_CONNECTED) {
     return HNODE_RET_EDISCONNECT;
   }
 
-  if(HNODE_RET_OK == hnode_topic_had_sub(node,topic)){
+  uint8_t flags = HMSG_FLAGS(HMSG_FCMD_DATA,flag_data);
+  int32_t topic_ex = HMSG_TOPICEX(0, flags, topic);
+  if (HNODE_RET_OK == hnode_topic_had_sub(node, topic_ex)) {
     return HNODE_RET_OK;
   }
 
-  hmsg_t msg = {.topic = topic,
-                .flags = HMSG_FLAG_SUB,
+  flags = HMSG_FLAGS(HMSG_FCMD_SUB,flag_data);
+  hmsg_t msg = {.magic = HMSG_MAGIC,
+                .version = 0,
+                .flags = flags,
+                .topic = topic,
                 .from = node->id,
+                .to = HMSG_APPID_BROKER,
                 .seq = 0,
                 .payload_size = 0};
   hnode_subscrib_handler_t handler = {handle_func, handle_func_param};
   int r = hio_write(node->io, &msg, sizeof(hmsg_t));
   if (r) {
     pthread_mutex_lock(&node->map_subpool_mtx);
-    HIHASH_SET(node->map_subpool, msg.topic, handler);
+    HIHASH_SET(node->map_subpool, topic_ex, handler);
     pthread_mutex_unlock(&node->map_subpool_mtx);
     return HNODE_RET_OK;
   }
@@ -309,46 +340,58 @@ int hnode_subscribe(hnode_t* node, uint16_t topic,
   HROKER_LOG("hio_write failed: %d\n", hio_error(node->io));
   return HNODE_RET_ESEND;
 }
-int hnode_unsubscribe(hnode_t* node, uint16_t topic) {
+
+int hnode_unsubscribe_i(hnode_t* node, uint16_t flags, uint16_t topic) {
   if (hatomic_load(&node->status) != HNODE_STATUS_CONNECTED) {
     return HNODE_RET_EDISCONNECT;
   }
 
-  if(HNODE_RET_OK != hnode_topic_had_sub(node,topic)){
+  if (HNODE_RET_OK != hnode_topic_had_sub(node, topic)) {
     return HNODE_RET_OK;
   }
 
-  hmsg_t msg = {.topic = topic,
-                .flags = HMSG_FLAG_UNSUB,
+  // uint8_t flags = HMSG_FLAGS(HMSG_FCMD_UNSUB,HMSG_FDATA_PUBDATA)
+  int32_t topic_ex = HMSG_TOPICEX(0, flags, topic);
+  hmsg_t msg = {.magic = HMSG_MAGIC,
+                .version = 0,
+                .flags = flags,
+                .topic = topic,
                 .from = node->id,
+                .to = HMSG_APPID_BROKER,
                 .seq = 0,
                 .payload_size = 0};
   int r = hio_write(node->io, &msg, sizeof(hmsg_t));
   if (r) {
     pthread_mutex_lock(&node->map_subpool_mtx);
-    HIHASH_DEL(node->map_subpool, msg.topic);
+    HIHASH_DEL(node->map_subpool, topic_ex);
     pthread_mutex_unlock(&node->map_subpool_mtx);
     return HNODE_RET_OK;
   }
-  
+
   HROKER_LOG("hio_write failed: %d\n", hio_error(node->io));
   return HNODE_RET_ESEND;
 }
 
-static void hnode_on_respond(const hmsg_t* msg, hnode_t* node) {
-  hrequest_ctx_t* ctx = NULL;
-  pthread_mutex_lock(&node->map_reppool_mtx);
-  HIHASH_ITERATE it = HIHASH_FIND(node->map_reppool, msg->seq);
-  if (HIHASH_ITERATE_VALID(node->map_reppool, it)) {
-    ctx = (hrequest_ctx_t*)HIHASH_GETV(node->map_reppool, it);
-  }
-  pthread_mutex_unlock(&node->map_reppool_mtx);
+int hnode_subscribe(hnode_t* node, uint16_t topic,
+                    hnode_subscrib_handler_func_t handle_func,
+                    void* handle_func_param) {
+  return hnode_subscribe_i(node, HMSG_FDATA_PUBSUB,
+                           topic, handle_func, handle_func_param);
+}
 
-  
-  if (ctx) {
+int hnode_unsubscribe(hnode_t* node, uint16_t topic) {
+  return hnode_unsubscribe_i(
+      node, HMSG_FLAGS(HMSG_FCMD_UNSUB, HMSG_FDATA_PUBSUB), topic);
+}
+
+static void hnode_on_respond(const hmsg_t* msg, void* p) {
+  hnode_t* node = (hnode_t*)p;
+  hrequest_ctx_t* ctx = &node->req_ctx[msg->seq & (node->req_ctx_count - 1)];
+  int ctx_status = hatomic_load(&ctx->status);
+  if (HREQUEST_CTX_STATUS_BUSY == ctx_status && msg->seq == ctx->seq) {
     pthread_mutex_lock(&ctx->mtx);
     hbuf_push(ctx->rep, msg->payload, msg->payload_size);
-    ctx->complet = 1;
+    hatomic_store(&ctx->status, HREQUEST_CTX_STATUS_IDLE);
     pthread_cond_signal(&ctx->cv);
     pthread_mutex_unlock(&ctx->mtx);
   } else {
@@ -356,90 +399,83 @@ static void hnode_on_respond(const hmsg_t* msg, hnode_t* node) {
                msg->to);
   }
 }
-static hrequest_ctx_t* hnode_register_request_ctx(hnode_t* node,uint32_t seq,hbuf_t* rep) {
+
+static hrequest_ctx_t* hnode_register_request_ctx(hnode_t* node, uint32_t seq,
+                                                  hbuf_t* rep) {
   hrequest_ctx_t* ctx = calloc(1, sizeof(hrequest_ctx_t));
   pthread_mutex_init(&ctx->mtx, NULL);
   pthread_cond_init(&ctx->cv, NULL);
   ctx->rep = rep;
   ctx->seq = seq;
-  ctx->complet = 0;
-  
-  pthread_mutex_lock(&node->map_reppool_mtx);
-  HIHASH_SET(node->map_reppool, seq, (intptr_t)ctx);
-  pthread_mutex_unlock(&node->map_reppool_mtx);
+  ctx->status = 0;
+
+  // pthread_mutex_lock(&node->map_reppool_mtx);
+  // HIHASH_SET(node->map_reppool, seq, (intptr_t)ctx);
+  // pthread_mutex_unlock(&node->map_reppool_mtx);
   return ctx;
 }
-static void hnode_unregister_request_ctx(hnode_t* node,hrequest_ctx_t* ctx) {
+static void hnode_unregister_request_ctx(hnode_t* node, hrequest_ctx_t* ctx) {
   pthread_mutex_destroy(&ctx->mtx);
   pthread_cond_destroy(&ctx->cv);
 
-  pthread_mutex_lock(&node->map_reppool_mtx);
-  HIHASH_DEL(node->map_reppool, ctx->seq);
-  pthread_mutex_unlock(&node->map_reppool_mtx);
+  // pthread_mutex_lock(&node->map_reppool_mtx);
+  // HIHASH_DEL(node->map_reppool, ctx->seq);
+  // pthread_mutex_unlock(&node->map_reppool_mtx);
   free(ctx);
 }
 
-
-
 int hnode_request(hnode_t* node, uint16_t topic, uint16_t to_node_id,
                   hbuf_t* req, hbuf_t* rep, uint32_t timeout) {
-  int ret = 0;
-                    // check param
   if (!node || !req || !rep) {
     return HNODE_RET_EPARAM;
   }
-
   if (HNODE_STATUS_CONNECTED != node->status) {
     return HNODE_RET_EDISCONNECT;
   }
-
   if (HNODE_REQUEST_TIMEOUT_MAX < timeout) {
     timeout = HNODE_REQUEST_TIMEOUT_MAX;
     HROKER_LOG("timeout exceed max(%d), set to max\n",
                HNODE_REQUEST_TIMEOUT_MAX);
   }
+  int ret = hnode_subscribe_i(node, HMSG_FDATA_REQREP,
+                             topic, hnode_on_respond, node);
 
-
-
-  // noftify broker,the node sub topic
-  if(HNODE_RET_OK != hnode_topic_had_sub(node,topic)){
-    hmsg_t msg_sub = {
-      .topic = topic,
-      .from = node->id,
-      .to = HMSG_APPID_BROKER,
-      .flags = HMSG_FLAG_SUB,
-      .payload_size = 0
-    };
-    ret = hio_write(node->io, &msg_sub, sizeof(hmsg_t));
-    HROKER_LOG("[%08X]node(%d),topic(%d)", ret, node->id, topic);
-  }
-
-  // register_request_ctx
+  // get ctx
   uint32_t seq = hatomic_inc(&node->ato_req_seq, 1);
-  hbuf_clear(rep);
-  hrequest_ctx_t* ctx = hnode_register_request_ctx(node,seq,rep);
+  hrequest_ctx_t* ctx = &node->req_ctx[seq & (node->req_ctx_count - 1)];
+  int req_ctx_status_expect = HREQUEST_CTX_STATUS_IDLE;
+  if (!__atomic_compare_exchange_n(&ctx->status, &req_ctx_status_expect,
+                                   HREQUEST_CTX_STATUS_BUSY, false,
+                                   __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
+    return HNODE_RET_EBUSY;
+  }
+  ctx->seq = seq;
+  ctx->rep = rep;
+  hbuf_clear(ctx->rep);
 
   // send request
   hmsg_t* msg = (hmsg_t*)calloc(1, sizeof(hmsg_t) + req->len);
+  msg->magic = HMSG_MAGIC;
+  msg->version = 0;
+  msg->flags = HMSG_FLAGS(HMSG_FCMD_DATA, HMSG_FDATA_REQREP);
+  msg->topic = topic;
   msg->from = node->id;
   msg->to = to_node_id;
-  msg->topic = topic;
-  msg->flags = HMSG_FLAG_REQUEST;
+  msg->seq = seq;
   msg->payload_size = req->len;
   if (msg->payload_size) {
     memcpy(msg->payload, req->data, msg->payload_size);
   }
-  msg->seq = seq;
   hio_write(node->io, msg, sizeof(hmsg_t) + msg->payload_size);
   free(msg);
-  
+
   // wait respond or timeout
   struct timespec ts;
   clock_gettime(CLOCK_REALTIME, &ts);
   hnode_time_offset(&ts, timeout);
 
   pthread_mutex_lock(&ctx->mtx);
-  while (!ctx->complet) {
+  while (HREQUEST_CTX_STATUS_BUSY == hatomic_load(&ctx->status)) {
     ret = pthread_cond_timedwait(&ctx->cv, &ctx->mtx, &ts);
     // if (ret == ETIMEDOUT) {
     //   break;
@@ -450,8 +486,6 @@ int hnode_request(hnode_t* node, uint16_t topic, uint16_t to_node_id,
     }
   }
   pthread_mutex_unlock(&ctx->mtx);
-
-  hnode_unregister_request_ctx(node,ctx);
   return ETIMEDOUT == ret ? HNODE_RET_ETIMEOUT : HNODE_RET_OK;
 }
 

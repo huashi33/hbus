@@ -28,7 +28,7 @@ double hcommon_clock_now_ms() {
 static int tpub(int delay,uint32_t msg_total){
   int r;
   int all_count = msg_total;
-  hnode_t *n = hnode_init(TPUB_APPID, "127.0.0.1", HBROKER_LISTEN_PORT);
+  hnode_t *n = hnode_init(TPUB_APPID, "127.0.0.1", HBROKER_LISTEN_PORT,16);
   while(HNODE_STATUS_CONNECTED != hnode_status(n)){
     hv_usleep(10*1000);
     printf("wait to connected\n");
@@ -86,7 +86,7 @@ static int tsub(int node_id,int count){
   int r;
   TPStatics_t tps;
   memset(&tps,0,sizeof tps);
-  hnode_t *n = hnode_init(node_id,"127.0.0.1",HBROKER_LISTEN_PORT);
+  hnode_t *n = hnode_init(node_id,"127.0.0.1",HBROKER_LISTEN_PORT,16);
 
   while(HNODE_STATUS_CONNECTED != hnode_status(n)){
     sleep(1);
@@ -105,7 +105,7 @@ static int tsub(int node_id,int count){
 
 static int treq(uint16_t node_id,uint16_t server_node_id,int count){
   int r;
-  hnode_t *n = hnode_init(node_id, "127.0.0.1",HBROKER_LISTEN_PORT);
+  hnode_t *n = hnode_init(node_id, "127.0.0.1",HBROKER_LISTEN_PORT,16);
   while(HNODE_STATUS_CONNECTED != hnode_status(n)){
     sleep(1);
   }
@@ -119,8 +119,8 @@ static int treq(uint16_t node_id,uint16_t server_node_id,int count){
   r = hnode_request(n,HMSG_MSGID_STATUS,server_node_id,&req,&res,1000);
   uint64_t t = hcommon_clock_now_ns() - t1;
   double dt = t / 1e3;
-  fprintf(stdout,"cost-0:%.3f us\n",dt);
   size_t respond_sub_num = HBUF_ITEM_COUNT(&res,uint16_t);
+  fprintf(stdout,"cost-0:%.3f us,topic_num:%zu\n",dt,respond_sub_num);
   for(size_t i = 0;i < respond_sub_num;++i){
     uint16_t respond_sub_topic = *HBUF_ITEM_AT(&res,uint16_t,i);
     fprintf(stdout,"[%zu]%d\n",i,respond_sub_topic);
@@ -136,8 +136,8 @@ static int treq(uint16_t node_id,uint16_t server_node_id,int count){
   dt = t / 1e3;
 
   
-  fprintf(stdout,"cost-%d:%.3f us\n",count,dt);
   respond_sub_num = HBUF_ITEM_COUNT(&res,uint16_t);
+  fprintf(stdout,"cost-%d:%.3f us,topic_num:%zu\n",count,dt,respond_sub_num);
   for(size_t i = 0;i < respond_sub_num;++i){
     uint16_t respond_sub_topic = *HBUF_ITEM_AT(&res,uint16_t,i);
     fprintf(stdout,"[%zu]%d\n",i,respond_sub_topic);
@@ -157,7 +157,7 @@ static void t_respond_connect(const hmsg_t* msg,void* p){
   respond->topic = msg->topic;
   respond->from = hnode_id(node);
   respond->to = msg->from;
-  respond->flags = HMSG_FLAG_RESPOND;
+  respond->flags = HMSG_FDATA_REQREP;
   respond->payload_size = 2;
   memcpy(respond->payload, "OK", 2);
 
@@ -166,7 +166,7 @@ static void t_respond_connect(const hmsg_t* msg,void* p){
   // hnode_publish(node,respond,sizeof(hmsg_t)+ 8);
 }
 static int trep(int node_id){
-  hnode_t *n = hnode_init(node_id, "127.0.0.1",HBROKER_LISTEN_PORT);
+  hnode_t *n = hnode_init(node_id, "127.0.0.1",HBROKER_LISTEN_PORT,16);
   while(HNODE_STATUS_CONNECTED != hnode_status(n)){
     sleep(1);
   }

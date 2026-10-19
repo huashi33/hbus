@@ -10,7 +10,7 @@
 #include "hv/hloop.h"
 #include "hv/hsocket.h"
 
-HIHASH_DEFINE(uint16_t, hbuf_t);
+HIHASH_DEFINE(int32_t, hbuf_t);
 typedef struct hsession_ {
   hio_t *io;
   hbuf_t buf_topics;
@@ -41,7 +41,7 @@ static void hbus_ctx_free() {
   HIHASH_FINI(hbus_ctx->map_topic_sessions);
 }
 
-static int hbus_ctx_session_add(uint16_t topic, hsession_t *s) {
+static int hbus_ctx_session_add(int32_t topic, hsession_t *s) {
   hbus_ctx_t *hbus_ctx = hbus_ctx_get();
 
   HIHASH_ITERATE it = HIHASH_FIND(hbus_ctx->map_topic_sessions, topic);
@@ -53,7 +53,7 @@ static int hbus_ctx_session_add(uint16_t topic, hsession_t *s) {
       hsession_t *tmp_session = HBUF_PTR_AT(buf_sessions, hsession_t, i);
       if (tmp_session == s) {
         // already exist
-        HROKER_LOG("node(%d, %d) sub,already-sub,topic(%d):\n", s->node_id,
+        HROKER_LOG("node(%d, %d) sub,already-sub,topic(%08X):\n", s->node_id,
                    hio_fd(s->io), topic);
         return HBROKER_RET_OK;
       }
@@ -66,15 +66,15 @@ static int hbus_ctx_session_add(uint16_t topic, hsession_t *s) {
     HBUF_PTR_PUSH(&b, s);
     HIHASH_SET(hbus_ctx->map_topic_sessions, topic, b);
   }
-  HROKER_LOG("node(%d,%d):+ topic(%d)\n", s->node_id, hio_fd(s->io), topic);
+  HROKER_LOG("node(%d,%d):+ topic(%08X)\n", s->node_id, hio_fd(s->io), topic);
 
   return HBROKER_RET_OK;
 }
-static int hbus_ctx_session_rm(uint16_t topic, hsession_t *s) {
+static int hbus_ctx_session_rm(int32_t topic, hsession_t *s) {
   hbus_ctx_t *hbus_ctx = hbus_ctx_get();
   HIHASH_ITERATE it = HIHASH_FIND(hbus_ctx->map_topic_sessions, topic);
   if (!HIHASH_ITERATE_VALID(hbus_ctx->map_topic_sessions, it)) {
-    HROKER_LOG("node(%d,%d):never sub topic(%d)\n", s->node_id, hio_fd(s->io),
+    HROKER_LOG("node(%d,%d):never sub topic(%08X)\n", s->node_id, hio_fd(s->io),
                topic);
     return HBROKER_RET_OK;
   }
@@ -148,7 +148,7 @@ double hcommon_clock_now_ms() {
 
 static void on_read(hio_t *io, void *buf, int readbytes) {
   hmsg_t *msg = (hmsg_t *)buf;
-  if (readbytes != sizeof(hmsg_t) + msg->payload_size) {
+  if (HMSG_MAGIC != msg->magic || readbytes != sizeof(hmsg_t) + msg->payload_size) {
     HROKER_LOG("readbytes(%d) != sizeof(hmsg_t)+msg->payload_size(%d)\n",
                readbytes, msg->payload_size);
     return;
@@ -157,11 +157,10 @@ static void on_read(hio_t *io, void *buf, int readbytes) {
   hbus_ctx_t *hbus_ctx = hbus_ctx_get();
   hsession_t *session = (hsession_t *)hio_context(io);
   // HROKER_LOG("<[%d](%d)-(%d)->(%d)\n",readbytes,msg->from,msg->msg_id,msg->to);
-  if (HMSG_FLAG_PUBDATA == msg->flags || HMSG_FLAG_REQUEST == msg->flags || HMSG_FLAG_RESPOND == msg->flags) {
-    // route to node
-    // uint64_t* pay = (uint64_t*)msg->payload;
-    // pay[2] = hcommon_clock_now_ns();
-    HIHASH_ITERATE it = HIHASH_FIND(hbus_ctx->map_topic_sessions, msg->topic);
+  
+  int topic_ex = HMSG_TOPICEX(msg->version,msg->flags,msg->topic);
+  if(HMSG_APPID_BROKER != msg->to){
+    HIHASH_ITERATE it = HIHASH_FIND(hbus_ctx->map_topic_sessions, topic_ex);
     if (HIHASH_ITERATE_VALID(hbus_ctx->map_topic_sessions, it)) {
       hbuf_t *buf_sessions = HIHASH_GETVPTR(hbus_ctx->map_topic_sessions, it);
       size_t session_num = HBUF_PTR_COUNT(buf_sessions);
@@ -178,39 +177,46 @@ static void on_read(hio_t *io, void *buf, int readbytes) {
       }
       HROKER_LOG("> forward:byte(%d) num:%d\n", readbytes, send_num);
     } else {
-      HROKER_LOG("< not-found,(%d)(%d)(%d)\n", msg->from, msg->topic, msg->to);
+      HROKER_LOG("< not-found,(%d)(%08X)(%d)\n", msg->from, topic_ex, msg->to);
     }
-  } else if (HMSG_FLAG_SUB == msg->flags) {
-    // add sub
-    size_t topic_num = HBUF_ITEM_COUNT(&session->buf_topics, uint16_t);
-    for (size_t j = 0; j < topic_num; ++j) {
-      uint16_t tmp_topic = *HBUF_ITEM_AT(&session->buf_topics, uint16_t, j);
-      if (tmp_topic == msg->topic) {
-        // already exist
-        HROKER_LOG("node(%d, %d) sub,already-sub,topic(%d):\n",
-                   session->node_id, hio_fd(session->io), tmp_topic);
-        return;
+  }
+  else{
+    if (HMSG_FCMD_SUB & msg->flags) {
+      // add sub
+      uint8_t flags_to_sub = HMSG_FLAGS(HMSG_FCMD_DATA,HMSG_FLAGS_DATA(msg->flags));
+      int topic_to_sub = HMSG_TOPICEX(0,flags_to_sub,msg->topic);
+      size_t topic_num = HBUF_ITEM_COUNT(&session->buf_topics, int32_t);
+      for (size_t j = 0; j < topic_num; ++j) {
+        int32_t tmp_topic = *HBUF_ITEM_AT(&session->buf_topics, int32_t, j);
+        if (tmp_topic == topic_to_sub) {
+          // already exist
+          HROKER_LOG("node(%d, %d) sub,already-sub,topic(0x%08X):\n",
+                    session->node_id, hio_fd(session->io), tmp_topic);
+          return;
+        }
       }
-    }
-    hbus_ctx_session_add(msg->topic, session);
-    hbuf_push(&session->buf_topics, &msg->topic, sizeof(msg->topic));
+      hbus_ctx_session_add(topic_to_sub, session);
+      hbuf_push(&session->buf_topics, &topic_to_sub, sizeof(int32_t));
 
-  } else if (HMSG_FLAG_UNSUB == msg->flags) {
-    // remove sub
-    size_t topic_num = HBUF_ITEM_COUNT(&session->buf_topics, uint16_t);
-    for (size_t j = 0; j < topic_num; ++j) {
-      uint16_t tmp_topic = ((uint16_t *)session->buf_topics.data)[j];
-      if (tmp_topic == msg->topic) {
-        hbuf_remove(&session->buf_topics, j, sizeof(uint16_t));
-        hbus_ctx_session_rm(msg->topic, session);
-        break;
+    } else if (HMSG_FCMD_UNSUB == msg->flags) {
+      // remove sub
+      uint8_t flags_to_unsub = HMSG_FLAGS(HMSG_FCMD_DATA,HMSG_FLAGS_DATA(msg->flags));
+      int topic_to_unsub = HMSG_TOPICEX(0,flags_to_unsub,msg->topic);
+      size_t topic_num = HBUF_ITEM_COUNT(&session->buf_topics, int32_t);
+      for (size_t j = 0; j < topic_num; ++j) {
+        int32_t tmp_topic = ((int32_t *)session->buf_topics.data)[j];
+        if (tmp_topic == topic_to_unsub) {
+          hbuf_remove(&session->buf_topics, j, sizeof(int32_t));
+          hbus_ctx_session_rm(tmp_topic, session);
+          break;
+        }
       }
+    } else if (HMSG_FCMD_REGISTER == msg->flags) {
+      session->node_id = msg->from;
+      HROKER_LOG("register %d\n", session->node_id);
+    } else {
+      HROKER_LOG("unknown msg->flags=%d\n", msg->flags);
     }
-  } else if (HMSG_FLAG_REGISTER == msg->flags) {
-    session->node_id = msg->from;
-    HROKER_LOG("register %d\n", session->node_id);
-  } else {
-    HROKER_LOG("unknown msg->flags=%d\n", msg->flags);
   }
 }
 
@@ -267,16 +273,18 @@ static void on_timer(htimer_t* timer) {
   hbus_ctx_t *ctx = hbus_ctx_get();
   HIHASH_ITERATE it = HIHASH_ITERATE_BEGIN(ctx->map_topic_sessions);
   while (HIHASH_ITERATE_VALID(ctx->map_topic_sessions,it)) {
-    uint16_t msg_id = HIHASH_GETK(ctx->map_topic_sessions, it);
+    int32_t topic_ex = HIHASH_GETK(ctx->map_topic_sessions, it);
     hbuf_t* buf_sessions = HIHASH_GETVPTR(ctx->map_topic_sessions, it);
     size_t sessio_num = HBUF_PTR_COUNT(buf_sessions);
-    HROKER_LOG("topic %d:\n",msg_id);
+    HROKER_LOG("topic(%08X):",topic_ex);
     for (size_t i = 0; i < sessio_num; ++i) {
       hsession_t* s = HBUF_PTR_AT(buf_sessions, hsession_t, i);
-      HROKER_LOG("-- %d,%d:\n",s->node_id,hio_fd(s->io));
+      HROKER_LOG("%d ",s->node_id,hio_fd(s->io));
     }
+    HROKER_LOG("\n");
     it = HIHASH_ITERATE_NEXT(it);
   }
+  
 }
 
 int main(int argc, char **argv) {
