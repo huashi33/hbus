@@ -157,7 +157,7 @@ static void t_respond_connect(const hmsg_t* msg,void* p){
   respond->topic = msg->topic;
   respond->from = hnode_id(node);
   respond->to = msg->from;
-  respond->flags = HMSG_FDATA_REQREP;
+  respond->flags = HMSG_FDATA_REQUEST;
   respond->payload_size = 2;
   memcpy(respond->payload, "OK", 2);
 

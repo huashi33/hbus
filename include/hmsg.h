@@ -12,7 +12,8 @@
 #define HMSG_FCMD_UNSUB 0x30
 // MSG DATA
 #define HMSG_FDATA_PUBSUB 0x00
-#define HMSG_FDATA_REQREP 0x01
+#define HMSG_FDATA_REQUEST 0x01
+#define HMSG_FDATA_REPOND 0x02
 
 //every msg's replay define by macro HMSG_REPLY
 //so mgs_id must be <= INT16_MAX

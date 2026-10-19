@@ -119,8 +119,8 @@ static void hnode_on_close(hio_t* io) {
 static void hnode_on_read(hio_t* io, void* buf, int readbytes) {
   hmsg_t* msg = (hmsg_t*)buf;
   int32_t topic_ex = HMSG_TOPICEX_INMSG(msg);
-  HROKER_LOG("recv msg,(%d)-(%08X)-(%d),bytes(%d)\n", msg->from, topic_ex,
-             msg->to, readbytes);
+  // HROKER_LOG("recv msg,(%d)-(%08X)-(%d),bytes(%d)\n", msg->from, topic_ex,
+  //            msg->to, readbytes);
   if (sizeof(hmsg_t) > readbytes ||
       (sizeof(hmsg_t) + msg->payload_size != readbytes)) {
     HROKER_LOG("recv invalid data, byte(%d)\n", readbytes);
@@ -156,7 +156,7 @@ static void hnode_on_status(const hmsg_t* msg, void* p) {
   hnode_t* node = (hnode_t*)p;
   hmsg_t msg_ret = {.magic = HMSG_MAGIC,
                     .version = 0,
-                    .flags = HMSG_FLAGS(HMSG_FCMD_DATA, HMSG_FDATA_REQREP),
+                    .flags = HMSG_FLAGS(HMSG_FCMD_DATA, HMSG_FDATA_REPOND),
                     .topic = msg->topic,
                     .from = node->id,
                     .to = msg->from,
@@ -182,8 +182,8 @@ static void hnode_on_status(const hmsg_t* msg, void* p) {
   hio_write(node->io, buf.data, buf.len);
   hbuf_fini(&buf);
 
-  HROKER_LOG("respond status:(%d)-(%08X)-(%d)\n", msg_ret.from, HMSG_TOPICEX_INMSG(p_msg_ret),
-             msg_ret.to);
+  // HROKER_LOG("respond status:(%d)-(%08X)-(%d)\n", msg_ret.from, HMSG_TOPICEX_INMSG(p_msg_ret),
+  //            msg_ret.to);
 }
 
 static void hnode_on_connect(hio_t* io) {
@@ -203,7 +203,7 @@ static void hnode_on_connect(hio_t* io) {
   hatomic_store(&node->status, HNODE_STATUS_CONNECTED);
   HROKER_LOG("connected: %d\n", node->id);
   //
-  hnode_subscribe_i(node, HMSG_FDATA_REQREP,
+  hnode_subscribe_i(node, HMSG_FDATA_REQUEST,
                     HMSG_MSGID_STATUS, hnode_on_status, node);
 }
 
@@ -437,7 +437,7 @@ int hnode_request(hnode_t* node, uint16_t topic, uint16_t to_node_id,
     HROKER_LOG("timeout exceed max(%d), set to max\n",
                HNODE_REQUEST_TIMEOUT_MAX);
   }
-  int ret = hnode_subscribe_i(node, HMSG_FDATA_REQREP,
+  int ret = hnode_subscribe_i(node, HMSG_FDATA_REPOND,
                              topic, hnode_on_respond, node);
 
   // get ctx
@@ -457,7 +457,7 @@ int hnode_request(hnode_t* node, uint16_t topic, uint16_t to_node_id,
   hmsg_t* msg = (hmsg_t*)calloc(1, sizeof(hmsg_t) + req->len);
   msg->magic = HMSG_MAGIC;
   msg->version = 0;
-  msg->flags = HMSG_FLAGS(HMSG_FCMD_DATA, HMSG_FDATA_REQREP);
+  msg->flags = HMSG_FLAGS(HMSG_FCMD_DATA, HMSG_FDATA_REQUEST);
   msg->topic = topic;
   msg->from = node->id;
   msg->to = to_node_id;
