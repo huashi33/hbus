@@ -41,6 +41,14 @@ typedef struct hmsg_ {
   char payload[];
 } hmsg_t;
 
+#define HMSG_PATLOAD_SIZE_MAX (1024*1024*64)
+
+
+#define HMSG_HEAD_VALID(msg,len) ((HMSG_MAGIC == msg->magic)  \
+                                  && (sizeof(hmsg_t) <= len)   \
+                                  && (HMSG_PATLOAD_SIZE_MAX >= len)\
+                                  && (len == sizeof(hmsg_t) + msg->payload_size))
+
 
 #define HMSG_FLAGS(FCMD,FDATA) ((FCMD)|(FDATA))
 #define HMSG_FLAGS_CMD(FLAGS) ((FLAGS)&0xF0)

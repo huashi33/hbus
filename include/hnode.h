@@ -32,6 +32,7 @@ typedef struct hnode_subscrib_handler_{
 }hnode_subscrib_handler_t;
 #define HREQUEST_CTX_STATUS_IDLE 0
 #define HREQUEST_CTX_STATUS_BUSY 1
+#define HREQUEST_CTX_STATUS_DONE 2
 typedef struct hrequest_ctx_{
   pthread_mutex_t mtx;
   pthread_cond_t cv;

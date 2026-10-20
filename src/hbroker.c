@@ -70,12 +70,12 @@ static int hbus_ctx_session_add(int32_t topic, hsession_t *s) {
 
   return HBROKER_RET_OK;
 }
-static int hbus_ctx_session_rm(int32_t topic, hsession_t *s) {
+static int hbus_ctx_session_rm(int32_t topic_ex, hsession_t *s) {
   hbus_ctx_t *hbus_ctx = hbus_ctx_get();
-  HIHASH_ITERATE it = HIHASH_FIND(hbus_ctx->map_topic_sessions, topic);
+  HIHASH_ITERATE it = HIHASH_FIND(hbus_ctx->map_topic_sessions, topic_ex);
   if (!HIHASH_ITERATE_VALID(hbus_ctx->map_topic_sessions, it)) {
     HROKER_LOG("node(%d,%d):never sub topic(%08X)\n", s->node_id, hio_fd(s->io),
-               topic);
+               topic_ex);
     return HBROKER_RET_OK;
   }
 
@@ -85,7 +85,7 @@ static int hbus_ctx_session_rm(int32_t topic, hsession_t *s) {
     hsession_t *tmp_session = HBUF_PTR_AT(buf_sessions, hsession_t, i);
     if (tmp_session == s) {
       hbuf_remove(buf_sessions, i, sizeof(intptr_t));
-      HROKER_LOG("node(%d,%d):- topic(%d)\n", s->node_id, hio_fd(s->io), topic);
+      HROKER_LOG("node(%d,%d):- topic(%08X)\n", s->node_id, hio_fd(s->io), topic_ex);
 
       break;
     }
@@ -93,7 +93,7 @@ static int hbus_ctx_session_rm(int32_t topic, hsession_t *s) {
 
   if (0 == HBUF_PTR_COUNT(buf_sessions)) {
     hbuf_fini(buf_sessions);
-    HIHASH_DEL(hbus_ctx->map_topic_sessions, topic);
+    HIHASH_DEL(hbus_ctx->map_topic_sessions, topic_ex);
   }
   return HBROKER_RET_OK;
 }
@@ -119,9 +119,9 @@ static hsession_t *hbus_seesion_alloc(hio_t *io) {
   return s;
 }
 static void hbus_seesion_free(hsession_t *s) {
-  size_t topic_num = HBUF_ITEM_COUNT(&s->buf_topics, uint16_t);
+  size_t topic_num = HBUF_ITEM_COUNT(&s->buf_topics, int32_t);
   for (size_t i = 0; i < topic_num; ++i) {
-    uint16_t tmp_topic = *HBUF_ITEM_AT(&s->buf_topics, uint16_t, i);
+    int32_t tmp_topic = *HBUF_ITEM_AT(&s->buf_topics, int32_t, i);
     hbus_ctx_session_rm(tmp_topic, s);
   }
 
@@ -148,8 +148,8 @@ double hcommon_clock_now_ms() {
 
 static void on_read(hio_t *io, void *buf, int readbytes) {
   hmsg_t *msg = (hmsg_t *)buf;
-  if (HMSG_MAGIC != msg->magic || readbytes != sizeof(hmsg_t) + msg->payload_size) {
-    HROKER_LOG("readbytes(%d) != sizeof(hmsg_t)+msg->payload_size(%d)\n",
+  if (!HMSG_HEAD_VALID(msg,readbytes)) {
+    HROKER_LOG("msg head check fail,bytes:%d,payload_size:%u\n",
                readbytes, msg->payload_size);
     return;
   }
