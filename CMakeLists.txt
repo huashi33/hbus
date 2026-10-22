@@ -7,12 +7,13 @@ set(CMAKE_BUILD_TYPE Debug)
 # 设置第三方库路径
 set(3RD_DIR_ROOT "${CMAKE_SOURCE_DIR}/3rd")
 set(3RD_LIBDIR "${3RD_DIR_ROOT}/lib")
-set(3RD_LIS )
+set(3RD_LIS hcore hv)
 
 message(STATUS "system is: ${CMAKE_SYSTEM_NAME}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(3RD_LIBDIR "${3RD_LIBDIR}/win64")
+        set(3RD_LIS ${3RD_LIS} ws2_32 iphlpapi crypt32 secur32)
     else()
         set(3RD_LIBDIR "${3RD_LIBDIR}/win32")
     endif()
@@ -33,11 +34,11 @@ link_directories(
 )
 
 add_library(hbus SHARED src/hnode.c)
-target_link_libraries(hbus PRIVATE hcore hv ws2_32 iphlpapi crypt32 secur32)
+target_link_libraries(hbus PRIVATE ${3RD_LIS})
 
 
 # file(GLOB SERVER_FILES ${CMAKE_SOURCE_DIR}/broker/*.cc)
 add_executable(hbroker src/hbroker.c )
-target_link_libraries(hbroker PRIVATE hcore hv ws2_32 iphlpapi crypt32 secur32)
+target_link_libraries(hbroker PRIVATE ${3RD_LIS})
 
 add_subdirectory(test) 
