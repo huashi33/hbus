@@ -1,3 +1,3 @@
 add_executable(tbase tbase.c )
-target_link_libraries(tbase hbus)
+target_link_libraries(tbase hbus hcore hv)
 

@@ -9,7 +9,7 @@ set(3RD_DIR_ROOT "${CMAKE_SOURCE_DIR}/3rd")
 set(3RD_LIBDIR "${3RD_DIR_ROOT}/lib")
 set(3RD_LIS )
 
-message(STATUS "当前系统名称: ${CMAKE_SYSTEM_NAME}")
+message(STATUS "system is: ${CMAKE_SYSTEM_NAME}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(3RD_LIBDIR "${3RD_LIBDIR}/win64")
@@ -33,11 +33,11 @@ link_directories(
 )
 
 add_library(hbus SHARED src/hnode.c)
-target_link_libraries(hbus PRIVATE libhcore.a libhv_static.a ws2_32 iphlpapi crypt32 secur32)
+target_link_libraries(hbus PRIVATE hcore hv ws2_32 iphlpapi crypt32 secur32)
 
 
 # file(GLOB SERVER_FILES ${CMAKE_SOURCE_DIR}/broker/*.cc)
 add_executable(hbroker src/hbroker.c )
-target_link_libraries(hbroker PRIVATE libhcore.a libhv_static.a ws2_32 iphlpapi crypt32 secur32)
+target_link_libraries(hbroker PRIVATE hcore hv ws2_32 iphlpapi crypt32 secur32)
 
 add_subdirectory(test) 
