@@ -395,7 +395,12 @@ int hnode_subscribe(hnode_t* node, uint16_t topic,
   return hnode_subscribe_i(node, HMSG_FDATA_PUBSUB,
                            topic, handle_func, handle_func_param);
 }
-
+int hnode_respond(hnode_t* node, uint16_t topic,
+                    hnode_subscrib_handler_func_t handle_func,
+                    void* handle_func_param) {
+  return hnode_subscribe_i(node, HMSG_FDATA_REQUEST,
+                           topic, handle_func, handle_func_param);
+}
 int hnode_unsubscribe(hnode_t* node, uint16_t topic) {
   return hnode_unsubscribe_i(
       node, HMSG_FLAGS(HMSG_FCMD_UNSUB, HMSG_FDATA_PUBSUB), topic);

@@ -60,6 +60,6 @@ int hnode_subscribe(hnode_t* node,uint16_t topic,hnode_subscrib_handler_func_t h
 int hnode_unsubscribe(hnode_t* node, uint16_t topic);
 // 
 int hnode_request(hnode_t* node, uint16_t topic, uint16_t to_node_id, hbuf_t* req,hbuf_t* rep,uint32_t timeout);
-
+int hnode_respond(hnode_t* node,uint16_t topic,hnode_subscrib_handler_func_t handle,void* userdata);
 
 #endif

@@ -42,3 +42,19 @@ add_executable(hbroker src/hbroker.c )
 target_link_libraries(hbroker PRIVATE ${3RD_LIS})
 
 add_subdirectory(test) 
+
+install(
+    DIRECTORY ${CMAKE_SOURCE_DIR}/include/
+    DESTINATION include/hbus
+)
+# install(
+#     DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+#     DESTINATION .
+# )
+install(TARGETS
+    hbus
+    hbroker
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+)
