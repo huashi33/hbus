@@ -54,7 +54,7 @@ install(
 install(TARGETS
     hbus
     hbroker
-    RUNTIME DESTINATION bin
+    RUNTIME DESTINATION lib
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
 )

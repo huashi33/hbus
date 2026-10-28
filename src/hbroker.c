@@ -304,7 +304,7 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  htimer_add(loop, on_timer, 2000, INFINITE);
+  htimer_add(loop, on_timer, 15000, INFINITE);
   printf("listen: 0.0.0.0:%d ...\n", port);
 
   // 3. 启动事件循环（进入主运行事件轮询，阻塞）

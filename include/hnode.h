@@ -48,7 +48,9 @@ HIHASH_DEFINE(uint32_t,intptr_t)
 
 typedef struct hnode_ hnode_t;
 
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 hnode_t* hnode_init(uint16_t id,const char* svr_ip,uint16_t svr_port,int request_count);
 int hnode_destroy(hnode_t*);
@@ -61,5 +63,9 @@ int hnode_unsubscribe(hnode_t* node, uint16_t topic);
 // 
 int hnode_request(hnode_t* node, uint16_t topic, uint16_t to_node_id, hbuf_t* req,hbuf_t* rep,uint32_t timeout);
 int hnode_respond(hnode_t* node,uint16_t topic,hnode_subscrib_handler_func_t handle,void* userdata);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
